@@ -1,0 +1,50 @@
+<Window x:Class="Screenshot.RegionSelectorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Select region"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        WindowStartupLocation="Manual" Left="0" Top="0" Width="200" Height="200"
+        Background="Black" Cursor="Cross" UseLayoutRounding="True"
+        FontFamily="Segoe UI Variable Text, Segoe UI">
+    <Grid x:Name="Root">
+        <!-- Frozen snapshot of the desktop -->
+        <Image x:Name="ScreenImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+
+        <!-- Dim layer with a hole cut out for the selection (geometry is built in code) -->
+        <Path x:Name="Shade" Fill="#99000000" IsHitTestVisible="False"/>
+
+        <Canvas x:Name="Overlay" IsHitTestVisible="False">
+            <Line x:Name="CrossH" Stroke="#B3FFFFFF" StrokeThickness="1" StrokeDashArray="4 4" Visibility="Collapsed"/>
+            <Line x:Name="CrossV" Stroke="#B3FFFFFF" StrokeThickness="1" StrokeDashArray="4 4" Visibility="Collapsed"/>
+
+            <Rectangle x:Name="SelectionBorder" StrokeThickness="2" Visibility="Collapsed">
+                <Rectangle.Stroke>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#A78BFA" Offset="0"/>
+                        <GradientStop Color="#22D3EE" Offset="1"/>
+                    </LinearGradientBrush>
+                </Rectangle.Stroke>
+            </Rectangle>
+
+            <Border x:Name="InfoLabel" Visibility="Hidden" CornerRadius="6" Padding="8,4"
+                    Background="#E61A1C26" BorderBrush="#5522D3EE" BorderThickness="1">
+                <TextBlock x:Name="InfoText" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+            </Border>
+
+            <!-- Positioned over the primary monitor in code -->
+            <Grid x:Name="HintHost">
+                <Border HorizontalAlignment="Center" Margin="0,28,0,0" CornerRadius="12" Padding="18,10"
+                        Background="#E61A1C26" BorderBrush="#33FFFFFF" BorderThickness="1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7A8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                                   Foreground="#22D3EE" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock Foreground="White" FontSize="13" VerticalAlignment="Center">
+                            <Run Text="Drag to select a region" FontWeight="SemiBold"/>
+                            <Run Text="   •   Esc or right-click to cancel" Foreground="#A0A4BD"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Canvas>
+    </Grid>
+</Window>
