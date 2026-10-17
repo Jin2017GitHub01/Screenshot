@@ -9,6 +9,7 @@
     <!-- WinForms is used only for the system tray NotifyIcon. -->
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>Screenshot</AssemblyName>
     <RootNamespace>Screenshot</RootNamespace>
     <Product>Snip by Jin</Product>
