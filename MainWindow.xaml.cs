@@ -48,12 +48,12 @@ public partial class MainWindow : Window
                 captured = true;
                 SetCurrent(ScreenCapture.Crop(screen, selector.SelectedRegion));
                 if (TryCopyToClipboard())
-                    ShowToast("Captured & copied to clipboard");
+                    ShowToast("Gotcha! Caught & copied to clipboard");
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Capture failed:\n{ex.Message}", "Snip", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"It got away! Capture failed:\n{ex.Message}", "Capture Everything", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -126,7 +126,7 @@ public partial class MainWindow : Window
             }
         }
 
-        MessageBox.Show("Could not access the clipboard. Please try again.", "Snip",
+        MessageBox.Show("Could not access the clipboard. Please try again.", "Capture Everything",
             MessageBoxButton.OK, MessageBoxImage.Warning);
         return false;
     }
@@ -169,7 +169,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Could not save the file:\n{ex.Message}", "Snip",
+            MessageBox.Show($"Could not save the file:\n{ex.Message}", "Capture Everything",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

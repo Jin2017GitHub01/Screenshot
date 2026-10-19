@@ -22,7 +22,7 @@ public partial class App : Application
         {
             _singleInstance.Dispose();
             _singleInstance = null;
-            MessageBox.Show("Snip is already running.\nLook for its icon in the system tray.", "Snip",
+            MessageBox.Show("Capture Everything is already running.\nLook for its icon in the system tray.", "Capture Everything",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
@@ -47,8 +47,8 @@ public partial class App : Application
             if (!_trayHintShown)
             {
                 _trayHintShown = true;
-                _tray.ShowBalloon("Snip is still running",
-                    "Click the tray icon to capture. Right-click it for more options.");
+                _tray.ShowBalloon("Capture Everything is still running",
+                    "Click the tray icon to catch a screenshot. Right-click it for more options.");
             }
         };
 

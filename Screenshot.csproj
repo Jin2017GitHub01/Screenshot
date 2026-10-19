@@ -12,7 +12,7 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>Screenshot</AssemblyName>
     <RootNamespace>Screenshot</RootNamespace>
-    <Product>Snip by Jin</Product>
+    <Product>Capture Everything</Product>
     <!-- WPF app: DPI awareness belongs in app.manifest, not WinForms' ApplicationHighDpiMode. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
@@ -22,5 +22,10 @@
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Store packaging output and scripts (see Packaging/Build-Msix.ps1) are not part of the app. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);dist/**;Packaging/**</DefaultItemExcludes>
+  </PropertyGroup>
 
 </Project>

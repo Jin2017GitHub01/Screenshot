@@ -22,14 +22,14 @@ internal sealed class TrayIcon : IDisposable
         var capture = new ToolStripMenuItem("New Capture", null, (_, _) => CaptureRequested?.Invoke(this, EventArgs.Empty));
         capture.Font = new Font(_menu.Font, FontStyle.Bold);
         _menu.Items.Add(capture);
-        _menu.Items.Add("Open Snip", null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add("Open Capture Everything", null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         _notifyIcon = new NotifyIcon
         {
             Icon = IconFactory.CreateAppIcon(SystemInformation.SmallIconSize.Width),
-            Text = "Snip – click to capture a region",
+            Text = "Capture Everything – click to catch a region",
             ContextMenuStrip = _menu,
             Visible = true
         };
