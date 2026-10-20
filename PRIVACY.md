@@ -33,4 +33,4 @@ with a new "Last updated" date.
 
 ## Contact
 
-Questions? Contact: **YOUR_EMAIL_HERE**
+Questions? Contact: [jin828sin@gmail.com](mailto:jin828sin@gmail.com)
