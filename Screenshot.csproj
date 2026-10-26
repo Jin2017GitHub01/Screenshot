@@ -23,6 +23,10 @@
     <Using Remove="System.Drawing" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" Version="3.3.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <!-- Store packaging output and scripts (see Packaging/Build-Msix.ps1) are not part of the app. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);dist/**;Packaging/**</DefaultItemExcludes>

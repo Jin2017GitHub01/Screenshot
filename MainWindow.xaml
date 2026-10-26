@@ -25,13 +25,30 @@
                 </StackPanel>
             </StackPanel>
 
-            <Button x:Name="CaptureButton" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right"
-                    Click="CaptureButton_Click" ToolTip="New capture (Ctrl+N)">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE722;" Style="{StaticResource IconText}"/>
-                    <TextBlock Text="New Capture"/>
-                </StackPanel>
-            </Button>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="RecordButton" Style="{StaticResource BaseButton}" Padding="18,11" FontSize="14"
+                        Click="RecordButton_Click" ToolTip="Record the sound playing on this computer (Ctrl+R)">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="RecordDot" Width="10" Height="10" Fill="White" Margin="0,0,9,0"
+                                 VerticalAlignment="Center" Visibility="Collapsed"/>
+                        <TextBlock x:Name="RecordIcon" Text="&#xE767;" Style="{StaticResource IconText}"/>
+                        <TextBlock x:Name="RecordLabel" Text="Record Audio"/>
+                        <!-- Live level meter (visible while recording) -->
+                        <Border x:Name="LevelMeter" Width="54" Height="6" CornerRadius="3" Margin="10,0,0,0"
+                                VerticalAlignment="Center" Background="#40FFFFFF" Visibility="Collapsed" ClipToBounds="True">
+                            <Border x:Name="LevelFill" HorizontalAlignment="Left" Width="0" CornerRadius="3" Background="White"/>
+                        </Border>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="CaptureButton" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0"
+                        Click="CaptureButton_Click" ToolTip="New capture (Ctrl+N)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE722;" Style="{StaticResource IconText}"/>
+                        <TextBlock Text="New Capture"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <!-- Preview card -->

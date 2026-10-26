@@ -10,9 +10,14 @@ internal sealed class TrayIcon : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _menu;
+    private readonly ToolStripMenuItem _recordItem;
+
+    private const string IdleTooltip = "Capture Everything – click to catch a region";
 
     /// <summary>Left-click on the icon, or "New Capture" in the menu.</summary>
     public event EventHandler? CaptureRequested;
+    /// <summary>"Record Audio" / "Stop Recording" in the menu.</summary>
+    public event EventHandler? RecordToggleRequested;
     public event EventHandler? OpenRequested;
     public event EventHandler? ExitRequested;
 
@@ -22,6 +27,8 @@ internal sealed class TrayIcon : IDisposable
         var capture = new ToolStripMenuItem("New Capture", null, (_, _) => CaptureRequested?.Invoke(this, EventArgs.Empty));
         capture.Font = new Font(_menu.Font, FontStyle.Bold);
         _menu.Items.Add(capture);
+        _recordItem = new ToolStripMenuItem("Record Audio", null, (_, _) => RecordToggleRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add(_recordItem);
         _menu.Items.Add("Open Capture Everything", null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
@@ -29,7 +36,7 @@ internal sealed class TrayIcon : IDisposable
         _notifyIcon = new NotifyIcon
         {
             Icon = IconFactory.CreateAppIcon(SystemInformation.SmallIconSize.Width),
-            Text = "Capture Everything – click to catch a region",
+            Text = IdleTooltip,
             ContextMenuStrip = _menu,
             Visible = true
         };
@@ -41,6 +48,12 @@ internal sealed class TrayIcon : IDisposable
 
     public void ShowBalloon(string title, string text) =>
         _notifyIcon.ShowBalloonTip(3000, title, text, ToolTipIcon.Info);
+
+    public void SetRecording(bool recording)
+    {
+        _recordItem.Text = recording ? "Stop Recording && Save" : "Record Audio";
+        _notifyIcon.Text = recording ? "Capture Everything – recording audio…" : IdleTooltip;
+    }
 
     public void Dispose()
     {

@@ -12,6 +12,7 @@
         <SolidColorBrush x:Key="TextBrush" Color="#ECEDF3"/>
         <SolidColorBrush x:Key="MutedBrush" Color="#8B8FA7"/>
         <SolidColorBrush x:Key="SuccessBrush" Color="#34D399"/>
+        <SolidColorBrush x:Key="RecordBrush" Color="#EF4444"/>
         <LinearGradientBrush x:Key="AccentBrush" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#8B5CF6" Offset="0"/>
             <GradientStop Color="#06B6D4" Offset="1"/>

@@ -35,8 +35,10 @@ public partial class App : Application
             _main.Icon = IconFactory.ToImageSource(windowIcon);
 
         _tray.CaptureRequested += async (_, _) => await _main.CaptureAsync();
+        _tray.RecordToggleRequested += async (_, _) => await _main.ToggleRecordingAsync();
         _tray.OpenRequested += (_, _) => _main.ShowFromTray();
         _tray.ExitRequested += (_, _) => ExitApp();
+        _main.RecordingStateChanged += (_, recording) => _tray.SetRecording(recording);
 
         // Closing the window hides it to the tray instead of quitting.
         _main.Closing += (_, args) =>
@@ -55,14 +57,16 @@ public partial class App : Application
         _main.Show();
     }
 
-    private void ExitApp()
+    private async void ExitApp()
     {
+        if (_main != null && !await _main.ConfirmExitWhileRecordingAsync()) return;
         _isExiting = true;
         Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _main?.DisposeRecorder();
         _tray?.Dispose();
         if (_singleInstance != null)
         {

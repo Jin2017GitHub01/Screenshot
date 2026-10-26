@@ -22,6 +22,7 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => ApplyDarkTitleBar();
         DpiChanged += (_, _) => UpdatePreviewSize();
         InitAnnotationTools();
+        InitAudio();
     }
 
     #region Capture
@@ -671,6 +672,221 @@ public partial class MainWindow : Window
 
     #endregion
 
+    #region Audio recording
+
+    private readonly AudioRecorder _recorder = new();
+    private readonly System.Windows.Threading.DispatcherTimer _recordTimer =
+        new() { Interval = TimeSpan.FromMilliseconds(50) };
+    private bool _audioBusy;   // stopping / saving in progress
+    private double _level;     // smoothed meter level (0..1)
+
+    public bool IsRecording => _recorder.IsRecording;
+
+    /// <summary>Raised when recording starts (true) or stops (false); used by the tray menu.</summary>
+    public event EventHandler<bool>? RecordingStateChanged;
+
+    private void InitAudio()
+    {
+        _recordTimer.Tick += (_, _) => UpdateRecordingMeter();
+        _recorder.StoppedUnexpectedly += (_, _) => Dispatcher.InvokeAsync(async () =>
+        {
+            if (_audioBusy) return;
+            ShowFromTray();
+            MessageBox.Show(this, "Recording stopped because the audio output device changed or became unavailable.\n" +
+                                  "You can still save what was recorded so far.", "Capture Everything",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            await StopRecordingAsync();
+        });
+    }
+
+    private async void RecordButton_Click(object sender, RoutedEventArgs e) => await ToggleRecordingAsync();
+
+    internal async Task ToggleRecordingAsync()
+    {
+        if (_audioBusy) return;
+        if (_recorder.IsRecording) await StopRecordingAsync();
+        else StartRecording();
+    }
+
+    private void StartRecording()
+    {
+        try
+        {
+            _recorder.Start();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not start audio recording:\n{ex.Message}", "Capture Everything",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        SetRecordingUi(true);
+        ShowToast("Recording system audio…");
+    }
+
+    /// <summary>Stops recording and (unless <paramref name="save"/> is false) asks where to save the MP3.</summary>
+    private async Task StopRecordingAsync(bool save = true)
+    {
+        if (_audioBusy) return;
+        _audioBusy = true;
+        RecordButton.IsEnabled = false;
+        try
+        {
+            var duration = _recorder.Elapsed;
+            string? wav = await _recorder.StopAsync();
+            SetRecordingUi(false);
+
+            if (!save) { _recorder.DeleteTempFile(); return; }
+            if (wav is null)
+            {
+                ShowToast("Nothing was recorded");
+                return;
+            }
+            await SaveRecordingAsync(wav, duration);
+        }
+        finally
+        {
+            _recorder.DeleteTempFile();
+            RecordButton.IsEnabled = true;
+            _audioBusy = false;
+        }
+    }
+
+    private async Task SaveRecordingAsync(string wav, TimeSpan duration)
+    {
+        if (!IsVisible || WindowState == WindowState.Minimized) ShowFromTray();
+
+        string folder = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "Recordings");
+        System.IO.Directory.CreateDirectory(folder);
+
+        var dialog = new SaveFileDialog
+        {
+            Title = $"Save audio recording ({FormatDuration(duration)})",
+            InitialDirectory = folder,
+            FileName = $"Recording_{DateTime.Now:yyyyMMdd_HHmmss}",
+            DefaultExt = ".mp3",
+            AddExtension = true,
+            Filter = "MP3 audio (*.mp3)|*.mp3"
+        };
+
+        // Cancelling would lose the recording, so confirm first.
+        while (dialog.ShowDialog(this) != true)
+        {
+            if (MessageBox.Show(this, "Discard this recording?", "Capture Everything",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                ShowToast("Recording discarded");
+                return;
+            }
+        }
+
+        string target = dialog.FileName;
+        string previousInfo = InfoText.Text;
+        InfoText.Text = "Saving MP3…";
+        try
+        {
+            await Task.Run(() => AudioRecorder.EncodeMp3(wav, target));
+            ShowToast($"Saved {System.IO.Path.GetFileName(target)}");
+        }
+        catch (Exception ex)
+        {
+            TryDelete(target);
+            string wavTarget = System.IO.Path.ChangeExtension(target, ".wav");
+            if (MessageBox.Show(this,
+                    $"Could not create the MP3 file:\n{ex.Message}\n\n" +
+                    $"Save the recording as a WAV file instead?\n{wavTarget}", "Capture Everything",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    System.IO.File.Copy(wav, wavTarget, overwrite: true);
+                    ShowToast($"Saved {System.IO.Path.GetFileName(wavTarget)}");
+                }
+                catch (Exception copyEx)
+                {
+                    MessageBox.Show(this, $"Could not save the file:\n{copyEx.Message}", "Capture Everything",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+        finally
+        {
+            InfoText.Text = previousInfo;
+        }
+    }
+
+    /// <summary>Called before the app exits. Returns false if the user cancels the exit.</summary>
+    internal async Task<bool> ConfirmExitWhileRecordingAsync()
+    {
+        if (!_recorder.IsRecording) return !_audioBusy;
+
+        ShowFromTray();
+        var answer = MessageBox.Show(this, "An audio recording is in progress.\n\nSave it before exiting?",
+            "Capture Everything", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (answer == MessageBoxResult.Cancel) return false;
+
+        await StopRecordingAsync(save: answer == MessageBoxResult.Yes);
+        return true;
+    }
+
+    internal void DisposeRecorder() => _recorder.Dispose();
+
+    private void SetRecordingUi(bool recording)
+    {
+        if (recording)
+        {
+            RecordButton.Background = (Brush)FindResource("RecordBrush");
+            RecordButton.BorderBrush = RecordButton.Background;
+            RecordButton.Foreground = Brushes.White;
+            RecordButton.ToolTip = "Stop recording and save as MP3 (Ctrl+R)";
+            RecordIcon.Visibility = Visibility.Collapsed;
+            RecordDot.Visibility = LevelMeter.Visibility = Visibility.Visible;
+            RecordLabel.Text = "Stop  0:00";
+            RecordDot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700))
+            {
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            });
+            _level = 0;
+            _recordTimer.Start();
+        }
+        else
+        {
+            _recordTimer.Stop();
+            RecordDot.BeginAnimation(OpacityProperty, null);
+            RecordButton.ClearValue(BackgroundProperty);
+            RecordButton.ClearValue(BorderBrushProperty);
+            RecordButton.ClearValue(ForegroundProperty);
+            RecordButton.ToolTip = "Record the sound playing on this computer (Ctrl+R)";
+            RecordIcon.Visibility = Visibility.Visible;
+            RecordDot.Visibility = LevelMeter.Visibility = Visibility.Collapsed;
+            RecordLabel.Text = "Record Audio";
+            LevelFill.Width = 0;
+        }
+        RecordingStateChanged?.Invoke(this, recording);
+    }
+
+    private void UpdateRecordingMeter()
+    {
+        RecordLabel.Text = $"Stop  {FormatDuration(_recorder.Elapsed)}";
+        // sqrt makes quiet sounds visible; fall back slowly so the bar doesn't flicker.
+        double peak = Math.Sqrt(_recorder.ReadPeak());
+        _level = Math.Max(peak, _level * 0.85);
+        LevelFill.Width = LevelMeter.Width * _level;
+    }
+
+    private static string FormatDuration(TimeSpan t) =>
+        t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+
+    private static void TryDelete(string path)
+    {
+        try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); } catch { /* best effort */ }
+    }
+
+    #endregion
+
     #region Keyboard shortcuts
 
     protected override async void OnPreviewKeyDown(KeyEventArgs e)
@@ -729,6 +945,10 @@ public partial class MainWindow : Window
             case Key.N:
                 e.Handled = true;
                 await CaptureAsync();
+                break;
+            case Key.R:
+                e.Handled = true;
+                await ToggleRecordingAsync();
                 break;
             case Key.C when _current != null && !editing:
                 e.Handled = true;
