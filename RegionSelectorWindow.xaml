@@ -36,11 +36,11 @@
                 <Border HorizontalAlignment="Center" Margin="0,28,0,0" CornerRadius="12" Padding="18,10"
                         Background="#E61A1C26" BorderBrush="#33FFFFFF" BorderThickness="1">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE7A8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                        <TextBlock x:Name="HintIcon" Text="&#xE7A8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
                                    Foreground="#22D3EE" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBlock Foreground="White" FontSize="13" VerticalAlignment="Center">
-                            <Run Text="Drag to catch a region" FontWeight="SemiBold"/>
-                            <Run Text="   •   Esc or right-click to cancel" Foreground="#A0A4BD"/>
+                            <Run x:Name="HintPrimary" Text="Drag to catch a region" FontWeight="SemiBold"/>
+                            <Run x:Name="HintSecondary" Text="   •   Esc or right-click to cancel" Foreground="#A0A4BD"/>
                         </TextBlock>
                     </StackPanel>
                 </Border>

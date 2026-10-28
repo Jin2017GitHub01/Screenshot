@@ -18,6 +18,7 @@ public partial class RegionSelectorWindow : Window
 
     private readonly BitmapSource _screen;
     private readonly Int32Rect _bounds;
+    private readonly bool _forVideo;
     private readonly RectangleGeometry _fullGeometry = new();
     private readonly RectangleGeometry _holeGeometry = new(new Rect(0, 0, 0, 0));
     private Point? _dragStart;
@@ -25,11 +26,20 @@ public partial class RegionSelectorWindow : Window
     /// <summary>Selected region in pixel coordinates of the snapshot bitmap.</summary>
     public Int32Rect SelectedRegion { get; private set; }
 
-    public RegionSelectorWindow(BitmapSource screen, Int32Rect virtualBounds)
+    public RegionSelectorWindow(BitmapSource screen, Int32Rect virtualBounds, bool forVideo = false)
     {
         InitializeComponent();
         _screen = screen;
         _bounds = virtualBounds;
+        _forVideo = forVideo;
+
+        if (forVideo)
+        {
+            HintIcon.Text = "\uE714";
+            HintIcon.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+            HintPrimary.Text = "Drag a region to record";
+            HintSecondary.Text = "   •   Click or Enter for full screen   •   Esc to cancel";
+        }
 
         ScreenImage.Source = screen;
         Shade.Data = new CombinedGeometry(GeometryCombineMode.Exclude, _fullGeometry, _holeGeometry);
@@ -130,6 +140,11 @@ public partial class RegionSelectorWindow : Window
             SelectedRegion = region;
             DialogResult = true;
         }
+        else if (_forVideo)
+        {
+            SelectedRegion = GetMonitorRegionAtCursor();
+            DialogResult = true;
+        }
         else
         {
             ResetSelection(end);
@@ -164,6 +179,13 @@ public partial class RegionSelectorWindow : Window
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (_forVideo && _dragStart is null && e.Key is Key.Enter or Key.Return or Key.Space)
+        {
+            SelectedRegion = GetMonitorRegionAtCursor();
+            DialogResult = true;
+            return;
+        }
+
         if (e.Key != Key.Escape) return;
 
         if (_dragStart != null)
@@ -264,6 +286,27 @@ public partial class RegionSelectorWindow : Window
         int x2 = Math.Clamp((int)Math.Round(r.Right * sx), 0, _screen.PixelWidth);
         int y2 = Math.Clamp((int)Math.Round(r.Bottom * sy), 0, _screen.PixelHeight);
         return new Int32Rect(x1, y1, x2 - x1, y2 - y1);
+    }
+
+    /// <summary>Full monitor under the cursor in snapshot bitmap coordinates.</summary>
+    private Int32Rect GetMonitorRegionAtCursor()
+    {
+        NativeMethods.GetCursorPos(out var pt);
+        var info = new NativeMethods.MONITORINFO
+        {
+            cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MONITORINFO>()
+        };
+        IntPtr mon = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        if (NativeMethods.GetMonitorInfo(mon, ref info))
+        {
+            int x1 = Math.Clamp(info.rcMonitor.Left - _bounds.X, 0, _screen.PixelWidth);
+            int y1 = Math.Clamp(info.rcMonitor.Top - _bounds.Y, 0, _screen.PixelHeight);
+            int x2 = Math.Clamp(info.rcMonitor.Right - _bounds.X, 0, _screen.PixelWidth);
+            int y2 = Math.Clamp(info.rcMonitor.Bottom - _bounds.Y, 0, _screen.PixelHeight);
+            if (x2 > x1 && y2 > y1)
+                return new Int32Rect(x1, y1, x2 - x1, y2 - y1);
+        }
+        return new Int32Rect(0, 0, _screen.PixelWidth, _screen.PixelHeight);
     }
 
     #endregion

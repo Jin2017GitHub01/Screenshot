@@ -10,12 +10,17 @@ internal sealed class TrayIcon : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _menu;
+    private readonly ToolStripMenuItem _videoItem;
     private readonly ToolStripMenuItem _recordItem;
+    private bool _audioRecording;
+    private bool _videoRecording;
 
     private const string IdleTooltip = "Capture Everything – click to catch a region";
 
     /// <summary>Left-click on the icon, or "New Capture" in the menu.</summary>
     public event EventHandler? CaptureRequested;
+    /// <summary>"Record Video" / "Stop Video &amp; Save" in the menu.</summary>
+    public event EventHandler? VideoToggleRequested;
     /// <summary>"Record Audio" / "Stop Recording" in the menu.</summary>
     public event EventHandler? RecordToggleRequested;
     public event EventHandler? OpenRequested;
@@ -27,6 +32,8 @@ internal sealed class TrayIcon : IDisposable
         var capture = new ToolStripMenuItem("New Capture", null, (_, _) => CaptureRequested?.Invoke(this, EventArgs.Empty));
         capture.Font = new Font(_menu.Font, FontStyle.Bold);
         _menu.Items.Add(capture);
+        _videoItem = new ToolStripMenuItem("Record Video", null, (_, _) => VideoToggleRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add(_videoItem);
         _recordItem = new ToolStripMenuItem("Record Audio", null, (_, _) => RecordToggleRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(_recordItem);
         _menu.Items.Add("Open Capture Everything", null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
@@ -51,8 +58,26 @@ internal sealed class TrayIcon : IDisposable
 
     public void SetRecording(bool recording)
     {
-        _recordItem.Text = recording ? "Stop Recording && Save" : "Record Audio";
-        _notifyIcon.Text = recording ? "Capture Everything – recording audio…" : IdleTooltip;
+        _audioRecording = recording;
+        _recordItem.Text = recording ? "Stop Audio && Save" : "Record Audio";
+        _videoItem.Enabled = !recording;
+        UpdateTooltip();
+    }
+
+    public void SetVideoRecording(bool recording)
+    {
+        _videoRecording = recording;
+        _videoItem.Text = recording ? "Stop Video && Save" : "Record Video";
+        _recordItem.Enabled = !recording;
+        UpdateTooltip();
+    }
+
+    private void UpdateTooltip()
+    {
+        _notifyIcon.Text =
+            _videoRecording ? "Capture Everything – recording video…" :
+            _audioRecording ? "Capture Everything – recording audio…" :
+            IdleTooltip;
     }
 
     public void Dispose()

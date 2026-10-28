@@ -2,7 +2,7 @@
 
 _Last updated: October 26, 2026_
 
-Capture Everything ("the app") is a screen and system-audio capture utility for Windows.
+Capture Everything ("the app") is a screen, video, and system-audio capture utility for Windows.
 
 ## Data we collect
 
@@ -17,11 +17,12 @@ no ads, and makes no network connections.
 - A capture is saved to disk **only when you choose Save**, at the location you pick.
 - Nothing is uploaded anywhere.
 
-## How the app handles audio recordings
+## How the app handles video and audio recordings
 
-- Audio is recorded **only while you have started a recording**, and only the sound
-  your computer is playing (system audio). The microphone is not used.
-- While recording, audio is written to a temporary file on your device, which is
+- Screen video and system audio are recorded **only while you have started a recording**.
+  Only the screen region you select and the sound your computer is playing (system audio)
+  are captured. The microphone and webcam are not used.
+- While recording, data is written to a temporary file on your device, which is
   deleted as soon as the recording is saved or discarded.
 - A recording is saved **only when you choose Save**, at the location you pick.
 - Nothing is uploaded anywhere.
