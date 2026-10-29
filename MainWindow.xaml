@@ -64,7 +64,12 @@
         <!-- Preview card -->
         <Border Grid.Row="1" Margin="0,18" CornerRadius="16" BorderThickness="1"
                 BorderBrush="{StaticResource StrokeBrush}" Background="{StaticResource CheckerBrush}">
-            <Grid ClipToBounds="True">
+            <Grid x:Name="PreviewViewport" ClipToBounds="True" Background="Transparent"
+                  PreviewMouseWheel="PreviewViewport_PreviewMouseWheel"
+                  MouseDown="PreviewViewport_MouseDown"
+                  MouseMove="PreviewViewport_MouseMove"
+                  MouseUp="PreviewViewport_MouseUp"
+                  LostMouseCapture="PreviewViewport_LostMouseCapture">
                 <!-- Empty state -->
                 <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Border Width="84" Height="84" CornerRadius="24" HorizontalAlignment="Center"
@@ -93,7 +98,11 @@
                 <Viewbox x:Name="PreviewHost" Stretch="Uniform" StretchDirection="DownOnly" Margin="28,72,28,28"
                          Visibility="Collapsed" RenderTransformOrigin="0.5,0.5">
                     <Viewbox.RenderTransform>
-                        <ScaleTransform x:Name="PreviewScale"/>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="PreviewScale"/>
+                            <ScaleTransform x:Name="ZoomScale" ScaleX="1" ScaleY="1"/>
+                            <TranslateTransform x:Name="ZoomTranslate" X="0" Y="0"/>
+                        </TransformGroup>
                     </Viewbox.RenderTransform>
                     <Border BorderBrush="#40FFFFFF" BorderThickness="1">
                         <Border.Effect>
@@ -139,6 +148,13 @@
                         <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
                         <Button Style="{StaticResource IconButton}" Content="&#xE7A7;" Click="Undo_Click" ToolTip="Undo last annotation (Ctrl+Z)"/>
                         <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Click="ClearText_Click" ToolTip="Remove all annotations"/>
+                        <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
+                        <Button Style="{StaticResource IconButton}" Content="&#xE71F;" Click="ZoomOut_Click" ToolTip="Zoom out (Mouse wheel down)"/>
+                        <Button x:Name="ZoomResetButton" Style="{StaticResource IconButton}"
+                                FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="12" FontWeight="SemiBold"
+                                MinWidth="46" Padding="6,5" Content="100%"
+                                Click="ZoomReset_Click" ToolTip="Mouse wheel to zoom • Click to reset to 100% (Ctrl+0)"/>
+                        <Button Style="{StaticResource IconButton}" Content="&#xE8A3;" Click="ZoomIn_Click" ToolTip="Zoom in (Mouse wheel up)"/>
                     </StackPanel>
                 </Border>
 

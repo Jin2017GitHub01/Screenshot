@@ -87,10 +87,11 @@ public partial class MainWindow : Window
         PreviewImage.Source = image;
         UpdatePreviewSize();
 
-        // A new capture starts with a clean annotation layer.
+        // A new capture starts with a clean annotation layer and 100% zoom.
         AnnotationCanvas.Children.Clear();
         _activeText = null;
         _selectedArrow = null;
+        ResetZoom();
         SetTool(AnnotationTool.None);
 
         EmptyState.Visibility = Visibility.Collapsed;
@@ -109,6 +110,168 @@ public partial class MainWindow : Window
         var dpi = VisualTreeHelper.GetDpi(this);
         PreviewImage.Width = _current.PixelWidth / dpi.DpiScaleX;
         PreviewImage.Height = _current.PixelHeight / dpi.DpiScaleY;
+    }
+
+    #endregion
+
+    #region Zoom & pan
+
+    private const double MinZoom = 0.25;
+    private const double MaxZoom = 8.0;
+    private const double ZoomStep = 1.15;
+
+    private double _zoom = 1.0;
+    private double _panX, _panY;
+    private bool _panning;
+    private Point _panStartMouse;
+    private double _panStartX, _panStartY;
+
+    private void PreviewViewport_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_current is null || e.Delta == 0) return;
+
+        // Do not hijack wheel scrolling inside the annotation toolbar itself.
+        if (e.OriginalSource is DependencyObject d && IsDescendantOf(d, AnnotateBar))
+            return;
+
+        e.Handled = true;
+        double factor = Math.Pow(ZoomStep, e.Delta / 120.0);
+        ZoomTo(_zoom * factor, e.GetPosition(PreviewViewport));
+    }
+
+    private void ZoomIn_Click(object sender, RoutedEventArgs e) =>
+        ZoomTo(_zoom * ZoomStep, GetPreviewHostCenter());
+
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) =>
+        ZoomTo(_zoom / ZoomStep, GetPreviewHostCenter());
+
+    private void ZoomReset_Click(object sender, RoutedEventArgs e) => ResetZoom();
+
+    private void ResetZoom()
+    {
+        _zoom = 1.0;
+        _panX = _panY = 0;
+        ApplyZoomTransform();
+    }
+
+    private void ZoomTo(double targetZoom, Point anchorInViewport)
+    {
+        double newZoom = Math.Clamp(targetZoom, MinZoom, MaxZoom);
+        if (Math.Abs(newZoom - 1.0) < 0.03) newZoom = 1.0;
+        if (Math.Abs(newZoom - _zoom) < 1e-6) return;
+
+        // Keep the point under the cursor stationary relative to PreviewHost's center.
+        Point center = GetPreviewHostCenter();
+        double ratio = newZoom / _zoom;
+        _panX = anchorInViewport.X - center.X - (anchorInViewport.X - center.X - _panX) * ratio;
+        _panY = anchorInViewport.Y - center.Y - (anchorInViewport.Y - center.Y - _panY) * ratio;
+        _zoom = newZoom;
+
+        ClampPan();
+        ApplyZoomTransform();
+    }
+
+    private Point GetPreviewHostCenter()
+    {
+        var m = PreviewHost.Margin;
+        double w = Math.Max(0, PreviewViewport.ActualWidth - m.Left - m.Right);
+        double h = Math.Max(0, PreviewViewport.ActualHeight - m.Top - m.Bottom);
+        return new Point(m.Left + w / 2.0, m.Top + h / 2.0);
+    }
+
+    private void ClampPan()
+    {
+        if (_zoom <= 1.0)
+        {
+            _panX = _panY = 0;
+            return;
+        }
+
+        double hostW = Math.Max(100, PreviewHost.ActualWidth);
+        double hostH = Math.Max(100, PreviewHost.ActualHeight);
+        double maxPanX = Math.Max(0, (hostW * _zoom - hostW * 0.25) / 2.0);
+        double maxPanY = Math.Max(0, (hostH * _zoom - hostH * 0.25) / 2.0);
+        _panX = Math.Clamp(_panX, -maxPanX, maxPanX);
+        _panY = Math.Clamp(_panY, -maxPanY, maxPanY);
+    }
+
+    private void ApplyZoomTransform()
+    {
+        ZoomScale.ScaleX = ZoomScale.ScaleY = _zoom;
+        ZoomTranslate.X = _panX;
+        ZoomTranslate.Y = _panY;
+        ZoomResetButton.Content = $"{Math.Round(_zoom * 100):0}%";
+        RenderOptions.SetBitmapScalingMode(
+            PreviewImage,
+            _zoom >= 2.0 ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
+        UpdateCanvasCursor();
+    }
+
+    private void PreviewViewport_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_current is null) return;
+        if (e.OriginalSource is DependencyObject d && IsDescendantOf(d, AnnotateBar)) return;
+
+        if (e.ChangedButton == MouseButton.Middle)
+        {
+            e.Handled = true;
+            if (e.ClickCount == 2) ResetZoom();
+            else if (_zoom > 1.0) StartPan(e.GetPosition(PreviewViewport));
+        }
+        else if (e.ChangedButton == MouseButton.Left && _zoom > 1.0 && _tool == AnnotationTool.None)
+        {
+            e.Handled = true;
+            EndTextEditing();
+            SelectArrow(null);
+            StartPan(e.GetPosition(PreviewViewport));
+        }
+    }
+
+    private void StartPan(Point mouseInViewport)
+    {
+        _panning = true;
+        _panStartMouse = mouseInViewport;
+        _panStartX = _panX;
+        _panStartY = _panY;
+        PreviewViewport.CaptureMouse();
+        UpdateCanvasCursor();
+    }
+
+    private void PreviewViewport_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_panning) return;
+        var delta = e.GetPosition(PreviewViewport) - _panStartMouse;
+        _panX = _panStartX + delta.X;
+        _panY = _panStartY + delta.Y;
+        ClampPan();
+        ApplyZoomTransform();
+    }
+
+    private void PreviewViewport_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_panning) return;
+        if (e.ChangedButton is MouseButton.Left or MouseButton.Middle)
+        {
+            e.Handled = true;
+            PreviewViewport.ReleaseMouseCapture();
+        }
+    }
+
+    private void PreviewViewport_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (!_panning) return;
+        _panning = false;
+        UpdateCanvasCursor();
+    }
+
+    private static bool IsDescendantOf(DependencyObject? node, DependencyObject ancestor)
+    {
+        while (node != null)
+        {
+            if (ReferenceEquals(node, ancestor)) return true;
+            node = VisualTreeHelper.GetParent(node);
+        }
+        return false;
     }
 
     #endregion
@@ -265,17 +428,22 @@ public partial class MainWindow : Window
     private void SetTool(AnnotationTool tool)
     {
         _tool = tool;
-        AnnotationCanvas.Cursor = tool switch
-        {
-            AnnotationTool.Text => Cursors.IBeam,
-            AnnotationTool.Arrow => Cursors.Cross,
-            _ => null
-        };
+        UpdateCanvasCursor();
         StyleToolButton(TextToolButton, tool == AnnotationTool.Text);
         StyleToolButton(ArrowToolButton, tool == AnnotationTool.Arrow);
 
         if (tool == AnnotationTool.Text) ShowToast("Click anywhere on the image to add text");
         else if (tool == AnnotationTool.Arrow) ShowToast("Drag on the image to draw an arrow");
+    }
+
+    private void UpdateCanvasCursor()
+    {
+        AnnotationCanvas.Cursor = _tool switch
+        {
+            AnnotationTool.Text => Cursors.IBeam,
+            AnnotationTool.Arrow => Cursors.Cross,
+            _ => _panning ? Cursors.SizeAll : _zoom > 1.0 ? Cursors.Hand : null
+        };
     }
 
     private void StyleToolButton(Button button, bool active)
@@ -364,6 +532,9 @@ public partial class MainWindow : Window
             case AnnotationTool.Arrow:
                 _drawingArrow = CreateArrow(pos);
                 AnnotationCanvas.CaptureMouse();
+                break;
+            case AnnotationTool.None when !wasTyping && _zoom > 1.0:
+                StartPan(e.GetPosition(PreviewViewport));
                 break;
         }
     }
@@ -1234,6 +1405,18 @@ public partial class MainWindow : Window
             case Key.S when _current != null:
                 e.Handled = true;
                 SaveAs();
+                break;
+            case Key.D0 or Key.NumPad0 when _current != null && !editing:
+                e.Handled = true;
+                ResetZoom();
+                break;
+            case Key.OemPlus or Key.Add when _current != null && !editing:
+                e.Handled = true;
+                ZoomTo(_zoom * ZoomStep, GetPreviewHostCenter());
+                break;
+            case Key.OemMinus or Key.Subtract when _current != null && !editing:
+                e.Handled = true;
+                ZoomTo(_zoom / ZoomStep, GetPreviewHostCenter());
                 break;
         }
     }
