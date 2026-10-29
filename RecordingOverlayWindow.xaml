@@ -7,7 +7,7 @@
         SizeToContent="WidthAndHeight" WindowStartupLocation="Manual"
         FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True"
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
-    <Border Margin="10" CornerRadius="14" Padding="14,8"
+    <Border x:Name="PillBorder" Margin="10" CornerRadius="14" Padding="14,8"
             Background="#F21A1C26" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1"
             Cursor="SizeAll" ToolTip="Drag to move • Excluded from video capture">
         <Border.Effect>
@@ -39,7 +39,7 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="&#xE71A;" FontFamily="{StaticResource IconFont}" FontSize="11"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock Text="Stop" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StopText" Text="Stop" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
         </StackPanel>

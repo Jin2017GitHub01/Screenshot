@@ -21,7 +21,7 @@
                 </Border>
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="Capture Everything" FontSize="20" FontWeight="Bold"/>
-                    <TextBlock Text="Catch every pixel" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="SubtitleText" Text="Catch every pixel" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
                 </StackPanel>
             </StackPanel>
 
@@ -32,7 +32,7 @@
                         <Ellipse x:Name="RecordDot" Width="10" Height="10" Fill="White" Margin="0,0,9,0"
                                  VerticalAlignment="Center" Visibility="Collapsed"/>
                         <TextBlock x:Name="RecordIcon" Text="&#xE767;" Style="{StaticResource IconText}"/>
-                        <TextBlock x:Name="RecordLabel" Text="Record Audio"/>
+                        <TextBlock x:Name="RecordLabel" Text="Capture Audio"/>
                         <!-- Live level meter (visible while recording) -->
                         <Border x:Name="LevelMeter" Width="54" Height="6" CornerRadius="3" Margin="10,0,0,0"
                                 VerticalAlignment="Center" Background="#40FFFFFF" Visibility="Collapsed" ClipToBounds="True">
@@ -47,15 +47,15 @@
                         <Ellipse x:Name="VideoDot" Width="10" Height="10" Fill="White" Margin="0,0,9,0"
                                  VerticalAlignment="Center" Visibility="Collapsed"/>
                         <TextBlock x:Name="VideoIcon" Text="&#xE714;" Style="{StaticResource IconText}"/>
-                        <TextBlock x:Name="VideoLabel" Text="Record Video"/>
+                        <TextBlock x:Name="VideoLabel" Text="Capture Video"/>
                     </StackPanel>
                 </Button>
 
                 <Button x:Name="CaptureButton" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0"
-                        Click="CaptureButton_Click" ToolTip="New capture (Ctrl+N)">
+                        Click="CaptureButton_Click" ToolTip="Capture screen region (Ctrl+N)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE722;" Style="{StaticResource IconText}"/>
-                        <TextBlock Text="New Capture"/>
+                        <TextBlock x:Name="CaptureLabel" Text="Capture Screen"/>
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -84,13 +84,11 @@
                             </TextBlock.Foreground>
                         </TextBlock>
                     </Border>
-                    <TextBlock Text="Nothing caught yet" FontSize="18" FontWeight="SemiBold"
+                    <TextBlock x:Name="EmptyTitleText" Text="Nothing caught yet" FontSize="18" FontWeight="SemiBold"
                                HorizontalAlignment="Center" Margin="0,18,0,6"/>
                     <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="13" HorizontalAlignment="Center"
                                TextAlignment="Center" TextWrapping="Wrap" MaxWidth="360">
-                        Click <Run Text="New Capture" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
-                        or press <Run Text="Ctrl+N" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>,
-                        then drag a rectangle anywhere on your screens to catch it.
+                        <Run x:Name="EmptyClickRun" Text="Click "/><Run x:Name="EmptyCaptureRun" Text="Capture Screen" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/><Run x:Name="EmptyOrPressRun" Text=" or press "/><Run Text="Ctrl+N" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/><Run x:Name="EmptySuffixRun" Text=", then drag a rectangle anywhere on your screens to catch it."/>
                     </TextBlock>
                 </StackPanel>
 
@@ -129,32 +127,32 @@
                                 Click="TextToolButton_Click" ToolTip="Add text (T) – then click on the image to type">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8D2;" Style="{StaticResource IconText}"/>
-                                <TextBlock Text="Text"/>
+                                <TextBlock x:Name="TextToolLabel" Text="Text"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="ArrowToolButton" Style="{StaticResource BaseButton}" Focusable="False" Padding="12,7"
                                 Margin="6,0,0,0" Click="ArrowToolButton_Click" ToolTip="Add arrow (A) – then drag on the image">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE72A;" Style="{StaticResource IconText}"/>
-                                <TextBlock Text="Arrow"/>
+                                <TextBlock x:Name="ArrowToolLabel" Text="Arrow"/>
                             </StackPanel>
                         </Button>
                         <StackPanel x:Name="ColorSwatches" Orientation="Horizontal" Margin="10,0,4,0" VerticalAlignment="Center"/>
                         <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE738;" Click="FontSmaller_Click" ToolTip="Smaller (text size / arrow thickness)"/>
+                        <Button x:Name="SmallerButton" Style="{StaticResource IconButton}" Content="&#xE738;" Click="FontSmaller_Click" ToolTip="Smaller (text size / arrow thickness)"/>
                         <TextBlock x:Name="FontSizeText" Width="28" TextAlignment="Center" VerticalAlignment="Center"
                                    FontSize="12" FontWeight="SemiBold" Text="24"/>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE710;" Click="FontLarger_Click" ToolTip="Larger (text size / arrow thickness)"/>
+                        <Button x:Name="LargerButton" Style="{StaticResource IconButton}" Content="&#xE710;" Click="FontLarger_Click" ToolTip="Larger (text size / arrow thickness)"/>
                         <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE7A7;" Click="Undo_Click" ToolTip="Undo last annotation (Ctrl+Z)"/>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Click="ClearText_Click" ToolTip="Remove all annotations"/>
+                        <Button x:Name="UndoButton" Style="{StaticResource IconButton}" Content="&#xE7A7;" Click="Undo_Click" ToolTip="Undo last annotation (Ctrl+Z)"/>
+                        <Button x:Name="ClearButton" Style="{StaticResource IconButton}" Content="&#xE74D;" Click="ClearText_Click" ToolTip="Remove all annotations"/>
                         <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE71F;" Click="ZoomOut_Click" ToolTip="Zoom out (Mouse wheel down)"/>
+                        <Button x:Name="ZoomOutButton" Style="{StaticResource IconButton}" Content="&#xE71F;" Click="ZoomOut_Click" ToolTip="Zoom out (Mouse wheel down)"/>
                         <Button x:Name="ZoomResetButton" Style="{StaticResource IconButton}"
                                 FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="12" FontWeight="SemiBold"
                                 MinWidth="46" Padding="6,5" Content="100%"
                                 Click="ZoomReset_Click" ToolTip="Mouse wheel to zoom • Click to reset to 100% (Ctrl+0)"/>
-                        <Button Style="{StaticResource IconButton}" Content="&#xE8A3;" Click="ZoomIn_Click" ToolTip="Zoom in (Mouse wheel up)"/>
+                        <Button x:Name="ZoomInButton" Style="{StaticResource IconButton}" Content="&#xE8A3;" Click="ZoomIn_Click" ToolTip="Zoom in (Mouse wheel up)"/>
                     </StackPanel>
                 </Border>
 
@@ -179,14 +177,14 @@
                         Click="CopyButton_Click" ToolTip="Copy to clipboard (Ctrl+C)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE8C8;" Style="{StaticResource IconText}"/>
-                        <TextBlock Text="Copy"/>
+                        <TextBlock x:Name="CopyLabel" Text="Copy"/>
                     </StackPanel>
                 </Button>
                 <Button x:Name="SaveButton" Style="{StaticResource BaseButton}" IsEnabled="False" Margin="10,0,0,0"
                         Click="SaveButton_Click" ToolTip="Save as image file (Ctrl+S)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE74E;" Style="{StaticResource IconText}"/>
-                        <TextBlock Text="Save As…"/>
+                        <TextBlock x:Name="SaveLabel" Text="Save As…"/>
                     </StackPanel>
                 </Button>
             </StackPanel>

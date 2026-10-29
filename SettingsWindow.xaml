@@ -1,0 +1,67 @@
+<Window x:Class="Screenshot.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Setting" Width="400" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI Variable Text, Segoe UI, Malgun Gothic" UseLayoutRounding="True">
+    <Grid Margin="22,18,22,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Border Width="36" Height="36" CornerRadius="10" Background="{StaticResource AccentBrush}">
+                <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" FontSize="17" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <TextBlock x:Name="HeaderTitle" Text="Setting" FontSize="18" FontWeight="Bold"
+                       Margin="12,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Language card -->
+        <Border Grid.Row="1" Margin="0,18,0,18" CornerRadius="14" Padding="16,14"
+                Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1">
+            <StackPanel>
+                <TextBlock x:Name="LangHeaderText" Text="Language" FontSize="14" FontWeight="SemiBold"/>
+                <TextBlock x:Name="LangDescText" Foreground="{StaticResource MutedBrush}" FontSize="12"
+                           TextWrapping="Wrap" Margin="0,4,0,14"
+                           Text="Choose the display language for menus, buttons, and messages."/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button x:Name="EnglishButton" Grid.Column="0" Style="{StaticResource BaseButton}"
+                            Padding="14,11" Click="EnglishButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="EnglishCheck" Text="&#xE73E;" FontFamily="{StaticResource IconFont}"
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                            <TextBlock Text="English" FontSize="13" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="KoreanButton" Grid.Column="2" Style="{StaticResource BaseButton}"
+                            Padding="14,11" Click="KoreanButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="KoreanCheck" Text="&#xE73E;" FontFamily="{StaticResource IconFont}"
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                            <TextBlock Text="한국어" FontSize="13" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer -->
+        <Button x:Name="CloseButton" Grid.Row="2" Style="{StaticResource BaseButton}"
+                HorizontalAlignment="Right" MinWidth="92" Click="CloseButton_Click" Content="Close"/>
+    </Grid>
+</Window>
+

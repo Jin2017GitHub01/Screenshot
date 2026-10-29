@@ -28,6 +28,8 @@ public partial class RecordingOverlayWindow : Window
         InitializeComponent();
         _region = region;
         _frameWindow = CreateFrameWindow(region);
+        ApplyLanguage();
+        L10n.LanguageChanged += OnLanguageChanged;
 
         SourceInitialized += OnPillSourceInitialized;
         Loaded += (_, _) =>
@@ -41,9 +43,20 @@ public partial class RecordingOverlayWindow : Window
         };
         Closed += (_, _) =>
         {
+            L10n.LanguageChanged -= OnLanguageChanged;
             RecordDot.BeginAnimation(OpacityProperty, null);
             _frameWindow.Close();
         };
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e) => ApplyLanguage();
+
+    private void ApplyLanguage()
+    {
+        PillBorder.ToolTip = L10n.OverlayDragTip;
+        LevelMeter.ToolTip = L10n.OverlayAudioMeterTip;
+        StopButton.ToolTip = L10n.StopVideoTip;
+        StopText.Text = L10n.StopPrefix;
     }
 
     public void ShowOverlay()

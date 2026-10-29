@@ -37,8 +37,13 @@ public partial class RegionSelectorWindow : Window
         {
             HintIcon.Text = "\uE714";
             HintIcon.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-            HintPrimary.Text = "Drag a region to record";
-            HintSecondary.Text = "   •   Click or Enter for full screen   •   Esc to cancel";
+            HintPrimary.Text = L10n.SelectorVideoPrimary;
+            HintSecondary.Text = L10n.SelectorVideoSecondary;
+        }
+        else
+        {
+            HintPrimary.Text = L10n.SelectorScreenPrimary;
+            HintSecondary.Text = L10n.SelectorScreenSecondary;
         }
 
         ScreenImage.Source = screen;

@@ -38,6 +38,7 @@ public partial class App : Application
         _tray.VideoToggleRequested += async (_, _) => await _main.ToggleVideoRecordingAsync();
         _tray.RecordToggleRequested += async (_, _) => await _main.ToggleRecordingAsync();
         _tray.OpenRequested += (_, _) => _main.ShowFromTray();
+        _tray.SettingsRequested += (_, _) => _main.OpenSettings();
         _tray.ExitRequested += (_, _) => ExitApp();
         _main.RecordingStateChanged += (_, recording) => _tray.SetRecording(recording);
         _main.VideoRecordingStateChanged += (_, recording) => _tray.SetVideoRecording(recording);
@@ -51,8 +52,7 @@ public partial class App : Application
             if (!_trayHintShown)
             {
                 _trayHintShown = true;
-                _tray.ShowBalloon("Capture Everything is still running",
-                    "Click the tray icon to catch a screenshot. Right-click it for more options.");
+                _tray.ShowBalloon(L10n.TrayStillRunningTitle, L10n.TrayStillRunningText);
             }
         };
 

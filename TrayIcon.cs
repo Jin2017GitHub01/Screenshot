@@ -10,40 +10,54 @@ internal sealed class TrayIcon : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _menu;
-    private readonly ToolStripMenuItem _videoItem;
+    private readonly ToolStripMenuItem _captureItem;
     private readonly ToolStripMenuItem _recordItem;
+    private readonly ToolStripMenuItem _videoItem;
+    private readonly ToolStripMenuItem _openItem;
+    private readonly ToolStripMenuItem _settingItem;
+    private readonly ToolStripMenuItem _exitItem;
     private bool _audioRecording;
     private bool _videoRecording;
 
-    private const string IdleTooltip = "Capture Everything – click to catch a region";
-
-    /// <summary>Left-click on the icon, or "New Capture" in the menu.</summary>
+    /// <summary>Left-click on the icon, or "Capture Screen" in the menu.</summary>
     public event EventHandler? CaptureRequested;
-    /// <summary>"Record Video" / "Stop Video &amp; Save" in the menu.</summary>
-    public event EventHandler? VideoToggleRequested;
-    /// <summary>"Record Audio" / "Stop Recording" in the menu.</summary>
+    /// <summary>"Capture Audio" / "Stop Audio &amp; Save" in the menu.</summary>
     public event EventHandler? RecordToggleRequested;
+    /// <summary>"Capture Video" / "Stop Video &amp; Save" in the menu.</summary>
+    public event EventHandler? VideoToggleRequested;
     public event EventHandler? OpenRequested;
+    public event EventHandler? SettingsRequested;
     public event EventHandler? ExitRequested;
 
     public TrayIcon()
     {
         _menu = new ContextMenuStrip();
-        var capture = new ToolStripMenuItem("New Capture", null, (_, _) => CaptureRequested?.Invoke(this, EventArgs.Empty));
-        capture.Font = new Font(_menu.Font, FontStyle.Bold);
-        _menu.Items.Add(capture);
-        _videoItem = new ToolStripMenuItem("Record Video", null, (_, _) => VideoToggleRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add(_videoItem);
-        _recordItem = new ToolStripMenuItem("Record Audio", null, (_, _) => RecordToggleRequested?.Invoke(this, EventArgs.Empty));
+
+        _captureItem = new ToolStripMenuItem(L10n.TrayCaptureScreen, null, (_, _) => CaptureRequested?.Invoke(this, EventArgs.Empty));
+        _captureItem.Font = new Font(_menu.Font, FontStyle.Bold);
+        _menu.Items.Add(_captureItem);
+
+        _recordItem = new ToolStripMenuItem(L10n.TrayCaptureAudio, null, (_, _) => RecordToggleRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(_recordItem);
-        _menu.Items.Add("Open Capture Everything", null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
+
+        _videoItem = new ToolStripMenuItem(L10n.TrayCaptureVideo, null, (_, _) => VideoToggleRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add(_videoItem);
+
+        _openItem = new ToolStripMenuItem(L10n.TrayOpen, null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add(_openItem);
+
+        _settingItem = new ToolStripMenuItem(L10n.TraySetting, null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add(_settingItem);
+
         _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
+
+        _exitItem = new ToolStripMenuItem(L10n.TrayExit, null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add(_exitItem);
 
         _notifyIcon = new NotifyIcon
         {
             Icon = IconFactory.CreateAppIcon(SystemInformation.SmallIconSize.Width),
-            Text = IdleTooltip,
+            Text = L10n.TrayIdleTooltip,
             ContextMenuStrip = _menu,
             Visible = true
         };
@@ -51,6 +65,22 @@ internal sealed class TrayIcon : IDisposable
         {
             if (e.Button == MouseButtons.Left) CaptureRequested?.Invoke(this, EventArgs.Empty);
         };
+
+        L10n.LanguageChanged += OnLanguageChanged;
+        ApplyLanguage();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e) => ApplyLanguage();
+
+    public void ApplyLanguage()
+    {
+        _captureItem.Text = L10n.TrayCaptureScreen;
+        _recordItem.Text = _audioRecording ? L10n.TrayStopAudio : L10n.TrayCaptureAudio;
+        _videoItem.Text = _videoRecording ? L10n.TrayStopVideo : L10n.TrayCaptureVideo;
+        _openItem.Text = L10n.TrayOpen;
+        _settingItem.Text = L10n.TraySetting;
+        _exitItem.Text = L10n.TrayExit;
+        UpdateTooltip();
     }
 
     public void ShowBalloon(string title, string text) =>
@@ -59,7 +89,7 @@ internal sealed class TrayIcon : IDisposable
     public void SetRecording(bool recording)
     {
         _audioRecording = recording;
-        _recordItem.Text = recording ? "Stop Audio && Save" : "Record Audio";
+        _recordItem.Text = recording ? L10n.TrayStopAudio : L10n.TrayCaptureAudio;
         _videoItem.Enabled = !recording;
         UpdateTooltip();
     }
@@ -67,7 +97,7 @@ internal sealed class TrayIcon : IDisposable
     public void SetVideoRecording(bool recording)
     {
         _videoRecording = recording;
-        _videoItem.Text = recording ? "Stop Video && Save" : "Record Video";
+        _videoItem.Text = recording ? L10n.TrayStopVideo : L10n.TrayCaptureVideo;
         _recordItem.Enabled = !recording;
         UpdateTooltip();
     }
@@ -75,13 +105,14 @@ internal sealed class TrayIcon : IDisposable
     private void UpdateTooltip()
     {
         _notifyIcon.Text =
-            _videoRecording ? "Capture Everything – recording video…" :
-            _audioRecording ? "Capture Everything – recording audio…" :
-            IdleTooltip;
+            _videoRecording ? L10n.TrayRecordingVideoTooltip :
+            _audioRecording ? L10n.TrayRecordingAudioTooltip :
+            L10n.TrayIdleTooltip;
     }
 
     public void Dispose()
     {
+        L10n.LanguageChanged -= OnLanguageChanged;
         _notifyIcon.Visible = false; // removes the icon from the tray immediately
         _notifyIcon.Icon?.Dispose();
         _notifyIcon.Dispose();

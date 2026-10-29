@@ -15,6 +15,7 @@ public partial class MainWindow : Window
 {
     private BitmapSource? _current;
     private bool _capturing;
+    private SettingsWindow? _settingsWindow;
 
     public MainWindow()
     {
@@ -24,6 +25,89 @@ public partial class MainWindow : Window
         InitAnnotationTools();
         InitAudio();
         InitVideo();
+        ApplyLanguage();
+        L10n.LanguageChanged += (_, _) => ApplyLanguage();
+    }
+
+    internal void OpenSettings()
+    {
+        if (_settingsWindow is { IsLoaded: true })
+        {
+            if (_settingsWindow.WindowState == WindowState.Minimized)
+                _settingsWindow.WindowState = WindowState.Normal;
+            _settingsWindow.Activate();
+            return;
+        }
+
+        _settingsWindow = new SettingsWindow
+        {
+            Icon = Icon
+        };
+        if (IsVisible && WindowState != WindowState.Minimized)
+        {
+            _settingsWindow.Owner = this;
+            _settingsWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Show();
+        _settingsWindow.Activate();
+    }
+
+    private void ApplyLanguage()
+    {
+        SubtitleText.Text = L10n.AppSubtitle;
+        CaptureLabel.Text = L10n.NewCapture;
+        CaptureButton.ToolTip = L10n.NewCaptureTip;
+
+        if (_recorder.IsRecording)
+        {
+            RecordButton.ToolTip = L10n.StopAudioTip;
+            RecordLabel.Text = $"{L10n.StopPrefix}  {FormatDuration(_recorder.Elapsed)}";
+        }
+        else
+        {
+            RecordButton.ToolTip = L10n.RecordAudioTip;
+            RecordLabel.Text = L10n.RecordAudio;
+        }
+
+        if (_videoRecorder.IsRecording)
+        {
+            VideoButton.ToolTip = L10n.StopVideoTip;
+            VideoLabel.Text = $"{L10n.StopPrefix}  {FormatDuration(_videoRecorder.Elapsed)}";
+        }
+        else
+        {
+            VideoButton.ToolTip = L10n.RecordVideoTip;
+            VideoLabel.Text = L10n.RecordVideo;
+        }
+
+        EmptyTitleText.Text = L10n.EmptyTitle;
+        EmptyClickRun.Text = L10n.EmptyPrefix;
+        EmptyCaptureRun.Text = L10n.NewCapture;
+        EmptyOrPressRun.Text = L10n.EmptyOrPress;
+        EmptySuffixRun.Text = L10n.EmptySuffix;
+
+        TextToolLabel.Text = L10n.ToolText;
+        TextToolButton.ToolTip = L10n.ToolTextTip;
+        ArrowToolLabel.Text = L10n.ToolArrow;
+        ArrowToolButton.ToolTip = L10n.ToolArrowTip;
+        foreach (var swatch in ColorSwatches.Children.OfType<Button>())
+            swatch.ToolTip = L10n.SwatchTip;
+        SmallerButton.ToolTip = L10n.SmallerTip;
+        LargerButton.ToolTip = L10n.LargerTip;
+        UndoButton.ToolTip = L10n.UndoTip;
+        ClearButton.ToolTip = L10n.ClearTip;
+        ZoomOutButton.ToolTip = L10n.ZoomOutTip;
+        ZoomResetButton.ToolTip = L10n.ZoomResetTip;
+        ZoomInButton.ToolTip = L10n.ZoomInTip;
+
+        CopyLabel.Text = L10n.Copy;
+        CopyButton.ToolTip = L10n.CopyTip;
+        SaveLabel.Text = L10n.SaveAs;
+        SaveButton.ToolTip = L10n.SaveAsTip;
+
+        if (_current is null && !_audioBusy && !_videoBusy)
+            InfoText.Text = L10n.Ready;
     }
 
     #region Capture
@@ -53,7 +137,7 @@ public partial class MainWindow : Window
                 captured = true;
                 SetCurrent(ScreenCapture.Crop(screen, selector.SelectedRegion));
                 if (TryCopyToClipboard())
-                    ShowToast("Gotcha! Caught & copied to clipboard");
+                    ShowToast(L10n.ToastCaughtCopied);
             }
         }
         catch (Exception ex)
@@ -280,7 +364,7 @@ public partial class MainWindow : Window
 
     private void CopyButton_Click(object sender, RoutedEventArgs e)
     {
-        if (TryCopyToClipboard()) ShowToast("Copied to clipboard");
+        if (TryCopyToClipboard()) ShowToast(L10n.ToastCopied);
     }
 
     private bool TryCopyToClipboard()
@@ -342,7 +426,7 @@ public partial class MainWindow : Window
             using var stream = System.IO.File.Create(dialog.FileName);
             encoder.Save(stream);
 
-            ShowToast($"Saved {System.IO.Path.GetFileName(dialog.FileName)}");
+            ShowToast(L10n.ToastSaved(System.IO.Path.GetFileName(dialog.FileName)));
         }
         catch (Exception ex)
         {
@@ -432,8 +516,8 @@ public partial class MainWindow : Window
         StyleToolButton(TextToolButton, tool == AnnotationTool.Text);
         StyleToolButton(ArrowToolButton, tool == AnnotationTool.Arrow);
 
-        if (tool == AnnotationTool.Text) ShowToast("Click anywhere on the image to add text");
-        else if (tool == AnnotationTool.Arrow) ShowToast("Drag on the image to draw an arrow");
+        if (tool == AnnotationTool.Text) ShowToast(L10n.ToastTextHint);
+        else if (tool == AnnotationTool.Arrow) ShowToast(L10n.ToastArrowHint);
     }
 
     private void UpdateCanvasCursor()
@@ -894,7 +978,7 @@ public partial class MainWindow : Window
         }
 
         SetRecordingUi(true);
-        ShowToast("Recording system audio…");
+        ShowToast(L10n.ToastRecordingAudio);
     }
 
     /// <summary>Stops recording and (unless <paramref name="save"/> is false) asks where to save the MP3.</summary>
@@ -912,7 +996,7 @@ public partial class MainWindow : Window
             if (!save) { _recorder.DeleteTempFile(); return; }
             if (wav is null)
             {
-                ShowToast("Nothing was recorded");
+                ShowToast(L10n.ToastNothingRecorded);
                 return;
             }
             await SaveRecordingAsync(wav, duration);
@@ -946,21 +1030,21 @@ public partial class MainWindow : Window
         // Cancelling would lose the recording, so confirm first.
         while (dialog.ShowDialog(this) != true)
         {
-            if (MessageBox.Show(this, "Discard this recording?", "Capture Everything",
+            if (MessageBox.Show(this, L10n.DiscardAudioQuestion, "Capture Everything",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                ShowToast("Recording discarded");
+                ShowToast(L10n.ToastAudioDiscarded);
                 return;
             }
         }
 
         string target = dialog.FileName;
         string previousInfo = InfoText.Text;
-        InfoText.Text = "Saving MP3…";
+        InfoText.Text = L10n.SavingMp3;
         try
         {
             await Task.Run(() => AudioRecorder.EncodeMp3(wav, target));
-            ShowToast($"Saved {System.IO.Path.GetFileName(target)}");
+            ShowToast(L10n.ToastSaved(System.IO.Path.GetFileName(target)));
         }
         catch (Exception ex)
         {
@@ -974,7 +1058,7 @@ public partial class MainWindow : Window
                 try
                 {
                     System.IO.File.Copy(wav, wavTarget, overwrite: true);
-                    ShowToast($"Saved {System.IO.Path.GetFileName(wavTarget)}");
+                    ShowToast(L10n.ToastSaved(System.IO.Path.GetFileName(wavTarget)));
                 }
                 catch (Exception copyEx)
                 {
@@ -995,7 +1079,7 @@ public partial class MainWindow : Window
         if (_videoRecorder.IsRecording)
         {
             ShowFromTray();
-            var answer = MessageBox.Show(this, "A video recording is in progress.\n\nSave it before exiting?",
+            var answer = MessageBox.Show(this, L10n.ExitWhileVideoRecording,
                 "Capture Everything", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
             if (answer == MessageBoxResult.Cancel) return false;
 
@@ -1006,7 +1090,7 @@ public partial class MainWindow : Window
         if (!_recorder.IsRecording) return !_audioBusy && !_videoBusy;
 
         ShowFromTray();
-        var audioAnswer = MessageBox.Show(this, "An audio recording is in progress.\n\nSave it before exiting?",
+        var audioAnswer = MessageBox.Show(this, L10n.ExitWhileAudioRecording,
             "Capture Everything", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
         if (audioAnswer == MessageBoxResult.Cancel) return false;
 
@@ -1016,6 +1100,7 @@ public partial class MainWindow : Window
 
     internal void DisposeRecorder()
     {
+        try { _settingsWindow?.Close(); } catch { /* best effort */ }
         CloseVideoOverlay();
         _videoRecorder.Dispose();
         _recorder.Dispose();
@@ -1028,10 +1113,10 @@ public partial class MainWindow : Window
             RecordButton.Background = (Brush)FindResource("RecordBrush");
             RecordButton.BorderBrush = RecordButton.Background;
             RecordButton.Foreground = Brushes.White;
-            RecordButton.ToolTip = "Stop recording and save as MP3 (Ctrl+R)";
+            RecordButton.ToolTip = L10n.StopAudioTip;
             RecordIcon.Visibility = Visibility.Collapsed;
             RecordDot.Visibility = LevelMeter.Visibility = Visibility.Visible;
-            RecordLabel.Text = "Stop  0:00";
+            RecordLabel.Text = $"{L10n.StopPrefix}  0:00";
             RecordDot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700))
             {
                 AutoReverse = true,
@@ -1048,10 +1133,10 @@ public partial class MainWindow : Window
             RecordButton.ClearValue(BackgroundProperty);
             RecordButton.ClearValue(BorderBrushProperty);
             RecordButton.ClearValue(ForegroundProperty);
-            RecordButton.ToolTip = "Record the sound playing on this computer (Ctrl+R)";
+            RecordButton.ToolTip = L10n.RecordAudioTip;
             RecordIcon.Visibility = Visibility.Visible;
             RecordDot.Visibility = LevelMeter.Visibility = Visibility.Collapsed;
-            RecordLabel.Text = "Record Audio";
+            RecordLabel.Text = L10n.RecordAudio;
             LevelFill.Width = 0;
             VideoButton.IsEnabled = true;
         }
@@ -1060,7 +1145,7 @@ public partial class MainWindow : Window
 
     private void UpdateRecordingMeter()
     {
-        RecordLabel.Text = $"Stop  {FormatDuration(_recorder.Elapsed)}";
+        RecordLabel.Text = $"{L10n.StopPrefix}  {FormatDuration(_recorder.Elapsed)}";
         // sqrt makes quiet sounds visible; fall back slowly so the bar doesn't flicker.
         double peak = Math.Sqrt(_recorder.ReadPeak());
         _level = Math.Max(peak, _level * 0.85);
@@ -1214,7 +1299,7 @@ public partial class MainWindow : Window
             ShowFromTray();
             if (mp4 is null)
             {
-                ShowToast("Nothing was recorded");
+                ShowToast(L10n.ToastNothingRecorded);
                 return;
             }
 
@@ -1248,22 +1333,22 @@ public partial class MainWindow : Window
 
         while (dialog.ShowDialog(this) != true)
         {
-            if (MessageBox.Show(this, "Discard this video recording?", "Capture Everything",
+            if (MessageBox.Show(this, L10n.DiscardVideoQuestion, "Capture Everything",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                ShowToast("Video recording discarded");
+                ShowToast(L10n.ToastVideoDiscarded);
                 return;
             }
         }
 
         string target = dialog.FileName;
         string previousInfo = InfoText.Text;
-        InfoText.Text = "Saving MP4…";
+        InfoText.Text = L10n.SavingMp4;
         try
         {
             await Task.Run(() => System.IO.File.Copy(mp4, target, overwrite: true));
             InfoText.Text = $"{region.Width} × {region.Height} px  •  {FormatDuration(duration)}  •  {DateTime.Now:HH:mm:ss}";
-            ShowToast($"Saved {System.IO.Path.GetFileName(target)}");
+            ShowToast(L10n.ToastSaved(System.IO.Path.GetFileName(target)));
         }
         catch (Exception ex)
         {
@@ -1288,10 +1373,10 @@ public partial class MainWindow : Window
             VideoButton.Background = (Brush)FindResource("RecordBrush");
             VideoButton.BorderBrush = VideoButton.Background;
             VideoButton.Foreground = Brushes.White;
-            VideoButton.ToolTip = "Stop video recording and save as MP4 (Ctrl+Shift+R)";
+            VideoButton.ToolTip = L10n.StopVideoTip;
             VideoIcon.Visibility = Visibility.Collapsed;
             VideoDot.Visibility = Visibility.Visible;
-            VideoLabel.Text = "Stop  0:00";
+            VideoLabel.Text = $"{L10n.StopPrefix}  0:00";
             VideoDot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700))
             {
                 AutoReverse = true,
@@ -1308,10 +1393,10 @@ public partial class MainWindow : Window
             VideoButton.ClearValue(BackgroundProperty);
             VideoButton.ClearValue(BorderBrushProperty);
             VideoButton.ClearValue(ForegroundProperty);
-            VideoButton.ToolTip = "Record screen video with system audio (Ctrl+Shift+R)";
+            VideoButton.ToolTip = L10n.RecordVideoTip;
             VideoIcon.Visibility = Visibility.Visible;
             VideoDot.Visibility = Visibility.Collapsed;
-            VideoLabel.Text = "Record Video";
+            VideoLabel.Text = L10n.RecordVideo;
             RecordButton.IsEnabled = true;
         }
         VideoRecordingStateChanged?.Invoke(this, recording);
@@ -1320,7 +1405,7 @@ public partial class MainWindow : Window
     private void UpdateVideoRecordingStatus()
     {
         var elapsed = _videoRecorder.Elapsed;
-        VideoLabel.Text = $"Stop  {FormatDuration(elapsed)}";
+        VideoLabel.Text = $"{L10n.StopPrefix}  {FormatDuration(elapsed)}";
         double peak = Math.Sqrt(_videoRecorder.ReadPeak());
         _videoLevel = Math.Max(peak, _videoLevel * 0.85);
         _videoOverlay?.UpdateStatus(elapsed, _videoLevel);
@@ -1400,7 +1485,7 @@ public partial class MainWindow : Window
                 break;
             case Key.C when _current != null && !editing:
                 e.Handled = true;
-                if (TryCopyToClipboard()) ShowToast("Copied to clipboard");
+                if (TryCopyToClipboard()) ShowToast(L10n.ToastCopied);
                 break;
             case Key.S when _current != null:
                 e.Handled = true;
