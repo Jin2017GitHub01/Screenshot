@@ -7,13 +7,65 @@ namespace Screenshot;
 
 public partial class SettingsWindow : Window
 {
+    private readonly List<(AppLanguage Language, Button Button, TextBlock Check)> _languageButtons = [];
+
     public SettingsWindow()
     {
         InitializeComponent();
+        BuildLanguageButtons();
         SourceInitialized += (_, _) => NativeMethods.ApplyDarkTitleBar(this);
         Closed += (_, _) => L10n.LanguageChanged -= OnLanguageChanged;
         L10n.LanguageChanged += OnLanguageChanged;
         ApplyLanguage();
+    }
+
+    private void BuildLanguageButtons()
+    {
+        var iconFont = (FontFamily)FindResource("IconFont");
+        var buttonStyle = (Style)FindResource("BaseButton");
+
+        foreach (var (lang, _, nativeName) in L10n.SupportedLanguages)
+        {
+            var check = new TextBlock
+            {
+                Text = "\uE73E",
+                FontFamily = iconFont,
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0),
+                Visibility = Visibility.Collapsed
+            };
+
+            var label = new TextBlock
+            {
+                Text = nativeName,
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var panel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            panel.Children.Add(check);
+            panel.Children.Add(label);
+
+            var btn = new Button
+            {
+                Style = buttonStyle,
+                Padding = new Thickness(10, 10, 10, 10),
+                Margin = new Thickness(4),
+                Content = panel
+            };
+
+            var captured = lang;
+            btn.Click += (_, _) => L10n.SetLanguage(captured);
+
+            LanguageGrid.Children.Add(btn);
+            _languageButtons.Add((lang, btn, check));
+        }
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => ApplyLanguage();
@@ -26,9 +78,10 @@ public partial class SettingsWindow : Window
         LangDescText.Text = L10n.SettingsLanguageDesc;
         CloseButton.Content = L10n.SettingsClose;
 
-        bool isKo = L10n.Current == AppLanguage.Korean;
-        StyleLanguageButton(EnglishButton, EnglishCheck, !isKo);
-        StyleLanguageButton(KoreanButton, KoreanCheck, isKo);
+        foreach (var (lang, button, check) in _languageButtons)
+        {
+            StyleLanguageButton(button, check, L10n.Current == lang);
+        }
     }
 
     private void StyleLanguageButton(Button button, UIElement checkIcon, bool selected)
@@ -49,12 +102,6 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void EnglishButton_Click(object sender, RoutedEventArgs e) =>
-        L10n.SetLanguage(AppLanguage.English);
-
-    private void KoreanButton_Click(object sender, RoutedEventArgs e) =>
-        L10n.SetLanguage(AppLanguage.Korean);
-
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -63,4 +110,3 @@ public partial class SettingsWindow : Window
         if (e.Key == Key.Escape) Close();
     }
 }
-
