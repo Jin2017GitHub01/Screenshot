@@ -170,9 +170,11 @@ public partial class MainWindow : Window
         // A new capture starts with a clean annotation layer and 100% zoom.
         AnnotationCanvas.Children.Clear();
         _activeText = null;
+        _selectedTextHolder = null;
         _selectedArrow = null;
         ResetZoom();
         SetTool(AnnotationTool.None);
+        UpdateToolUi();
 
         EmptyState.Visibility = Visibility.Collapsed;
         PreviewHost.Visibility = Visibility.Visible;
@@ -302,6 +304,7 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             EndTextEditing();
+            SelectTextHolder(null);
             SelectArrow(null);
             StartPan(e.GetPosition(PreviewViewport));
         }
@@ -465,6 +468,7 @@ public partial class MainWindow : Window
     private Color _textColor = TextPalette[0];
     private int _textSizeIndex = 4; // 24
     private TextBox? _activeText;
+    private Border? _selectedTextHolder;
     private bool _exporting;
 
     private Border? _dragging;
@@ -544,6 +548,7 @@ public partial class MainWindow : Window
     {
         _textColor = color;
         if (_activeText != null) ApplyTextStyle(_activeText);
+        else if (_selectedTextHolder?.Child is TextBox selectedBox) ApplyTextStyle(selectedBox);
         if (_selectedArrow != null) ApplyArrowStyle(_selectedArrow);
         UpdateToolUi();
     }
@@ -555,18 +560,53 @@ public partial class MainWindow : Window
     {
         _textSizeIndex = Math.Clamp(_textSizeIndex + delta, 0, TextSizes.Length - 1);
         if (_activeText != null) ApplyTextStyle(_activeText);
+        else if (_selectedTextHolder?.Child is TextBox selectedBox) ApplyTextStyle(selectedBox);
         if (_selectedArrow != null) ApplyArrowStyle(_selectedArrow);
         UpdateToolUi();
     }
 
-    private void ClearText_Click(object sender, RoutedEventArgs e)
-    {
-        AnnotationCanvas.Children.Clear();
-        _activeText = null;
-        _selectedArrow = null;
-    }
+    private void ClearText_Click(object sender, RoutedEventArgs e) => DeleteSelectedOrLastAnnotation();
 
     private void Undo_Click(object sender, RoutedEventArgs e) => UndoLastAnnotation();
+
+    /// <summary>Deletes the currently selected/active annotation, or the most recently created one if none is selected.</summary>
+    private bool DeleteSelectedOrLastAnnotation()
+    {
+        if (_activeText?.Parent is Border activeHolder && AnnotationCanvas.Children.Contains(activeHolder))
+        {
+            AnnotationCanvas.Children.Remove(activeHolder);
+            _activeText = null;
+            if (_selectedTextHolder == activeHolder) _selectedTextHolder = null;
+            Keyboard.ClearFocus();
+            Focus();
+            UpdateToolUi();
+            return true;
+        }
+
+        if (_selectedTextHolder != null && AnnotationCanvas.Children.Contains(_selectedTextHolder))
+        {
+            AnnotationCanvas.Children.Remove(_selectedTextHolder);
+            _selectedTextHolder = null;
+            UpdateToolUi();
+            return true;
+        }
+
+        if (_selectedArrow != null && AnnotationCanvas.Children.Contains(_selectedArrow))
+        {
+            AnnotationCanvas.Children.Remove(_selectedArrow);
+            _selectedArrow = null;
+            UpdateToolUi();
+            return true;
+        }
+
+        if (AnnotationCanvas.Children.Count > 0)
+        {
+            UndoLastAnnotation();
+            return true;
+        }
+
+        return false;
+    }
 
     private void UndoLastAnnotation()
     {
@@ -576,6 +616,8 @@ public partial class MainWindow : Window
         var last = AnnotationCanvas.Children[count - 1];
         AnnotationCanvas.Children.RemoveAt(count - 1);
         if (last == _selectedArrow) _selectedArrow = null;
+        if (last == _selectedTextHolder) _selectedTextHolder = null;
+        UpdateToolUi();
     }
 
     private void UpdateToolUi()
@@ -600,6 +642,7 @@ public partial class MainWindow : Window
 
         bool wasTyping = IsEditingText(out var editing) && !string.IsNullOrWhiteSpace(editing!.Text);
         EndTextEditing();
+        SelectTextHolder(null);
         SelectArrow(null);
 
         var pos = e.GetPosition(AnnotationCanvas);
@@ -660,6 +703,7 @@ public partial class MainWindow : Window
         {
             if (_drawingArrow != null) return;
             EndTextEditing();
+            SelectTextHolder(null);
             SelectArrow(path);
             var d = (ArrowData)path.Tag;
             _draggingArrow = path;
@@ -735,6 +779,19 @@ public partial class MainWindow : Window
         path.Data = geometry;
     }
 
+    private void SelectTextHolder(Border? holder)
+    {
+        _selectedTextHolder = holder;
+        if (holder?.Child is TextBox box)
+        {
+            if (box.Foreground is SolidColorBrush b) _textColor = b.Color;
+            int idx = Array.IndexOf(TextSizes, box.FontSize);
+            if (idx >= 0) _textSizeIndex = idx;
+            UpdateToolUi();
+        }
+        RefreshChrome();
+    }
+
     private void SelectArrow(Shapes.Path? arrow)
     {
         _selectedArrow = arrow;
@@ -800,18 +857,26 @@ public partial class MainWindow : Window
         {
             SelectArrow(null);
             _activeText = box;
+            _selectedTextHolder = holder;
             // Reflect this text's style in the toolbar.
             if (box.Foreground is SolidColorBrush b) _textColor = b.Color;
             int idx = Array.IndexOf(TextSizes, box.FontSize);
             if (idx >= 0) _textSizeIndex = idx;
             UpdateToolUi();
-            UpdateChrome(holder);
+            RefreshChrome();
         };
         box.LostKeyboardFocus += (_, _) =>
         {
             if (_activeText == box) _activeText = null;
-            if (string.IsNullOrWhiteSpace(box.Text)) AnnotationCanvas.Children.Remove(holder);
-            else UpdateChrome(holder);
+            if (string.IsNullOrWhiteSpace(box.Text))
+            {
+                if (_selectedTextHolder == holder) _selectedTextHolder = null;
+                AnnotationCanvas.Children.Remove(holder);
+            }
+            else
+            {
+                UpdateChrome(holder);
+            }
         };
         holder.MouseEnter += (_, _) => UpdateChrome(holder);
         holder.MouseLeave += (_, _) => UpdateChrome(holder);
@@ -819,6 +884,9 @@ public partial class MainWindow : Window
         holder.MouseLeftButtonDown += (_, e) =>
         {
             if (e.OriginalSource != holder) return; // clicks on the text itself go to the TextBox
+            EndTextEditing();
+            SelectArrow(null);
+            SelectTextHolder(holder);
             _dragging = holder;
             _dragMoved = false;
             _dragStart = e.GetPosition(AnnotationCanvas);
@@ -839,7 +907,7 @@ public partial class MainWindow : Window
             if (_dragging != holder) return;
             _dragging = null;
             holder.ReleaseMouseCapture();
-            if (!_dragMoved)
+            if (!_dragMoved && e.ClickCount >= 2)
             {
                 box.Focus();
                 box.CaretIndex = box.Text.Length;
@@ -859,7 +927,7 @@ public partial class MainWindow : Window
     {
         holder.BorderBrush =
             _exporting ? Brushes.Transparent :
-            holder.IsKeyboardFocusWithin ? FocusChromeBrush :
+            holder.IsKeyboardFocusWithin || holder == _selectedTextHolder ? FocusChromeBrush :
             holder.IsMouseOver ? HoverChromeBrush :
             Brushes.Transparent;
     }
@@ -1322,9 +1390,10 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 EndTextEditing();
             }
-            else if (e.Key == Key.Escape && _selectedArrow != null)
+            else if (e.Key == Key.Escape && (_selectedArrow != null || _selectedTextHolder != null))
             {
                 e.Handled = true;
+                SelectTextHolder(null);
                 SelectArrow(null);
             }
             else if (e.Key == Key.Escape && _tool != AnnotationTool.None)
@@ -1332,11 +1401,10 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 SetTool(AnnotationTool.None);
             }
-            else if (e.Key is Key.Delete or Key.Back && !editing && _selectedArrow != null)
+            else if (e.Key is Key.Delete or Key.Back && !editing && _current != null)
             {
-                e.Handled = true;
-                AnnotationCanvas.Children.Remove(_selectedArrow);
-                _selectedArrow = null;
+                if (DeleteSelectedOrLastAnnotation())
+                    e.Handled = true;
             }
             else if (e.Key == Key.T && !editing && _current != null)
             {

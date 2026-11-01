@@ -583,18 +583,18 @@ internal static class L10n
         pt: "Desfazer última anotação (Ctrl+Z)");
 
     public static string ClearTip => Get(
-        en: "Remove all annotations",
-        ko: "모든 주석 지우기",
-        ja: "すべての注釈を消去",
-        zhHans: "清除所有标注",
-        zhHant: "清除所有標註",
-        hi: "सभी एनोटेशन हटाएँ",
-        ur: "تمام نشانات ہٹائیں",
-        ru: "Удалить все пометки",
-        es: "Eliminar todas las anotaciones",
-        fr: "Supprimer toutes les annotations",
-        de: "Alle Anmerkungen entfernen",
-        pt: "Remover todas as anotações");
+        en: "Delete selected annotation (Delete)",
+        ko: "선택한 주석 삭제 (Delete)",
+        ja: "選択した注釈を削除 (Delete)",
+        zhHans: "删除选中的标注 (Delete)",
+        zhHant: "刪除選取的標註 (Delete)",
+        hi: "चयनित एनोटेशन हटाएँ (Delete)",
+        ur: "منتخب نشان حذف کریں (Delete)",
+        ru: "Удалить выбранную пометку (Delete)",
+        es: "Eliminar anotación seleccionada (Delete)",
+        fr: "Supprimer l’annotation sélectionnée (Suppr)",
+        de: "Ausgewählte Anmerkung löschen (Entf)",
+        pt: "Excluir anotação selecionada (Delete)");
 
     public static string ZoomOutTip => Get(
         en: "Zoom out (Mouse wheel down)",

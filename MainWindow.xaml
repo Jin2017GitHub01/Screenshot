@@ -145,7 +145,7 @@
                         <Button x:Name="LargerButton" Style="{StaticResource IconButton}" Content="&#xE710;" Click="FontLarger_Click" ToolTip="Larger (text size / arrow thickness)"/>
                         <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
                         <Button x:Name="UndoButton" Style="{StaticResource IconButton}" Content="&#xE7A7;" Click="Undo_Click" ToolTip="Undo last annotation (Ctrl+Z)"/>
-                        <Button x:Name="ClearButton" Style="{StaticResource IconButton}" Content="&#xE74D;" Click="ClearText_Click" ToolTip="Remove all annotations"/>
+                        <Button x:Name="ClearButton" Style="{StaticResource IconButton}" Content="&#xE74D;" Click="ClearText_Click" ToolTip="Delete selected annotation (Delete)"/>
                         <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
                         <Button x:Name="ZoomOutButton" Style="{StaticResource IconButton}" Content="&#xE71F;" Click="ZoomOut_Click" ToolTip="Zoom out (Mouse wheel down)"/>
                         <Button x:Name="ZoomResetButton" Style="{StaticResource IconButton}"
