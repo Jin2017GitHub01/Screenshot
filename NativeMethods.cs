@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Interop;
 
 namespace Screenshot;
 
@@ -164,10 +166,28 @@ internal static class NativeMethods
     public static extern uint timeEndPeriod(uint period);
 
     /// <summary>Full bounds and work area (physical pixels) of the monitor nearest to a rectangle.</summary>
-    public static (RECT Monitor, RECT Work) GetMonitorRects(RECT area)
+    public static (RECT Monitor, RECT Work) GetMonitorRects(RECT area) =>
+        GetMonitorRectsCore(MonitorFromRect(ref area, MONITOR_DEFAULTTONEAREST));
+
+    /// <summary>Full bounds and work area (physical pixels) of the monitor nearest to a screen point.</summary>
+    public static (RECT Monitor, RECT Work) GetMonitorRectsFromPoint(POINT pt) =>
+        GetMonitorRectsCore(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST));
+
+    private static (RECT Monitor, RECT Work) GetMonitorRectsCore(IntPtr monitor)
     {
         var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-        GetMonitorInfo(MonitorFromRect(ref area, MONITOR_DEFAULTTONEAREST), ref info);
+        GetMonitorInfo(monitor, ref info);
         return (info.rcMonitor, info.rcWork);
+    }
+
+    /// <summary>Applies a dark immersive title bar matching the app theme (Windows 10 20H1+ / Windows 11).</summary>
+    public static void ApplyDarkTitleBar(Window window)
+    {
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        int dark = 1;
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+        int captionColor = 0x001A1312; // COLORREF (0x00BBGGRR) for #12131A
+        DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref captionColor, sizeof(int));
     }
 }

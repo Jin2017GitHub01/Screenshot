@@ -50,28 +50,11 @@ internal sealed class AudioRecorder : IDisposable
         BytesRecorded = 0;
         _peak = 0;
 
-        using var enumerator = new MMDeviceEnumerator();
-        var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-
-        _capture = new WasapiLoopbackCapture(device);
+        (_capture, _silenceKeeper) = CreateLoopbackWithSilenceKeeper();
         _writer = new WaveFileWriter(TempFile, _capture.WaveFormat);
         _stopped = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _capture.DataAvailable += OnDataAvailable;
         _capture.RecordingStopped += OnRecordingStopped;
-
-        // Loopback delivers no data while nothing is playing, which would cut the pauses out
-        // of the recording. Playing inaudible silence keeps the stream (and the timeline) running.
-        try
-        {
-            _silenceKeeper = new WasapiOut(device, AudioClientShareMode.Shared, true, 100);
-            _silenceKeeper.Init(new SilenceProvider(_capture.WaveFormat));
-            _silenceKeeper.Play();
-        }
-        catch
-        {
-            _silenceKeeper?.Dispose();
-            _silenceKeeper = null; // recording still works, silent gaps are just skipped
-        }
 
         try
         {
@@ -85,6 +68,32 @@ internal sealed class AudioRecorder : IDisposable
 
         IsRecording = true;
         _clock.Restart();
+    }
+
+    /// <summary>
+    /// Opens a WASAPI loopback capture on the default multimedia output device and starts a
+    /// silent output stream so loopback keeps delivering frames during silent gaps.
+    /// </summary>
+    internal static (WasapiLoopbackCapture Capture, WasapiOut? SilenceKeeper) CreateLoopbackWithSilenceKeeper()
+    {
+        using var enumerator = new MMDeviceEnumerator();
+        var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+        var capture = new WasapiLoopbackCapture(device);
+
+        WasapiOut? silenceKeeper = null;
+        try
+        {
+            silenceKeeper = new WasapiOut(device, AudioClientShareMode.Shared, true, 100);
+            silenceKeeper.Init(new SilenceProvider(capture.WaveFormat));
+            silenceKeeper.Play();
+        }
+        catch
+        {
+            silenceKeeper?.Dispose();
+            silenceKeeper = null; // recording still works; silent gaps are just skipped
+        }
+
+        return (capture, silenceKeeper);
     }
 
     /// <summary>Stops recording (or finalizes one that stopped by itself) and returns the temp WAV path (null if nothing was captured).</summary>
@@ -102,17 +111,15 @@ internal sealed class AudioRecorder : IDisposable
         return BytesRecorded > 0 ? TempFile : null;
     }
 
-    /// <summary>Stops and throws the recording away.</summary>
-    public async Task DiscardAsync()
-    {
-        await StopAsync();
-        DeleteTempFile();
-    }
-
     public void DeleteTempFile()
     {
-        try { if (TempFile != null && File.Exists(TempFile)) File.Delete(TempFile); } catch { /* best effort */ }
+        DeleteFileBestEffort(TempFile);
         TempFile = null;
+    }
+
+    internal static void DeleteFileBestEffort(string? path)
+    {
+        try { if (path != null && File.Exists(path)) File.Delete(path); } catch { /* best effort */ }
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
@@ -148,13 +155,15 @@ internal sealed class AudioRecorder : IDisposable
         if (unexpected) StoppedUnexpectedly?.Invoke(this, e.Exception);
     }
 
+    internal static bool IsFloat32(WaveFormat format) =>
+        format.BitsPerSample == 32 &&
+        (format.Encoding == WaveFormatEncoding.IeeeFloat ||
+         (format is WaveFormatExtensible ext && ext.SubFormat == KsDataFormatSubtypeIeeeFloat));
+
     private static float MeasurePeak(ReadOnlySpan<byte> data, WaveFormat format)
     {
         float peak = 0;
-        bool isFloat = format.Encoding == WaveFormatEncoding.IeeeFloat ||
-                       (format is WaveFormatExtensible ext && ext.SubFormat == KsDataFormatSubtypeIeeeFloat);
-
-        if (isFloat && format.BitsPerSample == 32)
+        if (IsFloat32(format))
         {
             foreach (float s in System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(data))
                 peak = Math.Max(peak, Math.Abs(s));

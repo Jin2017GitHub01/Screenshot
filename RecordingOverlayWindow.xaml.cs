@@ -35,11 +35,7 @@ public partial class RecordingOverlayWindow : Window
         Loaded += (_, _) =>
         {
             PositionPill();
-            RecordDot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700))
-            {
-                AutoReverse = true,
-                RepeatBehavior = RepeatBehavior.Forever
-            });
+            RecordDot.BeginAnimation(OpacityProperty, MainWindow.CreatePulseAnimation());
         };
         Closed += (_, _) =>
         {

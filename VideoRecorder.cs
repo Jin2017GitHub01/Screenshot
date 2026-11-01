@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
-using NAudio.CoreAudioApi;
 using NAudio.MediaFoundation;
 using NAudio.Wave;
 using static Screenshot.NativeMethods;
@@ -23,8 +22,6 @@ internal sealed class VideoRecorder : IDisposable
     private const int MaxVideoWidth = 1920;
     private const int MaxVideoHeight = 1080;
     private const int MinVideoDimension = 64;
-
-    private static readonly Guid KsDataFormatSubtypeIeeeFloat = new("00000003-0000-0010-8000-00aa00389b71");
 
     // Media Foundation attribute & format GUIDs
     private static readonly Guid MF_MT_MAJOR_TYPE = new("48eba18e-f8c9-4687-bf11-0a74c9f96a8f");
@@ -123,7 +120,7 @@ internal sealed class VideoRecorder : IDisposable
 
     public void DeleteTempFile()
     {
-        try { if (TempFile != null && File.Exists(TempFile)) File.Delete(TempFile); } catch { /* best effort */ }
+        AudioRecorder.DeleteFileBestEffort(TempFile);
         TempFile = null;
     }
 
@@ -310,74 +307,38 @@ internal sealed class VideoRecorder : IDisposable
         long frameRate = PackUInt32(Fps, 1);
         long aspect = PackUInt32(1, 1);
         int bitrate = (int)Math.Clamp((long)width * height * Fps / 5, 1_500_000L, 12_000_000L);
+        int streamIndex = -1;
 
-        MediaFoundationException.ThrowIfFailed(MFCreateMediaType(out IntPtr outPtr));
-        var outType = (IMFAttributes)Marshal.GetObjectForIUnknown(outPtr);
-        try
+        WithMediaType(MFMediaType_Video, MFVideoFormat_H264, mt =>
         {
-            MediaFoundationException.ThrowIfFailed(outType.SetGUID(in MF_MT_MAJOR_TYPE, in MFMediaType_Video));
-            MediaFoundationException.ThrowIfFailed(outType.SetGUID(in MF_MT_SUBTYPE, in MFVideoFormat_H264));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT32(in MF_MT_AVG_BITRATE, bitrate));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT32(in MF_MT_INTERLACE_MODE, 2)); // Progressive
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT64(in MF_MT_FRAME_SIZE, frameSize));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT64(in MF_MT_FRAME_RATE, frameRate));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT64(in MF_MT_PIXEL_ASPECT_RATIO, aspect));
+            SetUInt32(mt, MF_MT_AVG_BITRATE, bitrate);
+            SetUInt32(mt, MF_MT_INTERLACE_MODE, 2); // Progressive
+            SetUInt64(mt, MF_MT_FRAME_SIZE, frameSize);
+            SetUInt64(mt, MF_MT_FRAME_RATE, frameRate);
+            SetUInt64(mt, MF_MT_PIXEL_ASPECT_RATIO, aspect);
+        }, ptr => MediaFoundationException.ThrowIfFailed(sinkWriter.AddStream(ptr, out streamIndex)));
 
-            MediaFoundationException.ThrowIfFailed(sinkWriter.AddStream(outPtr, out int streamIndex));
-
-            MediaFoundationException.ThrowIfFailed(MFCreateMediaType(out IntPtr inPtr));
-            var inType = (IMFAttributes)Marshal.GetObjectForIUnknown(inPtr);
-            try
-            {
-                MediaFoundationException.ThrowIfFailed(inType.SetGUID(in MF_MT_MAJOR_TYPE, in MFMediaType_Video));
-                MediaFoundationException.ThrowIfFailed(inType.SetGUID(in MF_MT_SUBTYPE, in MFVideoFormat_RGB32));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_INTERLACE_MODE, 2));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT64(in MF_MT_FRAME_SIZE, frameSize));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT64(in MF_MT_FRAME_RATE, frameRate));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT64(in MF_MT_PIXEL_ASPECT_RATIO, aspect));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_DEFAULT_STRIDE, stride));
-
-                MediaFoundationException.ThrowIfFailed(sinkWriter.SetInputMediaType(streamIndex, inPtr, IntPtr.Zero));
-                return streamIndex;
-            }
-            finally
-            {
-                Marshal.ReleaseComObject(inType);
-                Marshal.Release(inPtr);
-            }
-        }
-        finally
+        WithMediaType(MFMediaType_Video, MFVideoFormat_RGB32, mt =>
         {
-            Marshal.ReleaseComObject(outType);
-            Marshal.Release(outPtr);
-        }
+            SetUInt32(mt, MF_MT_INTERLACE_MODE, 2);
+            SetUInt64(mt, MF_MT_FRAME_SIZE, frameSize);
+            SetUInt64(mt, MF_MT_FRAME_RATE, frameRate);
+            SetUInt64(mt, MF_MT_PIXEL_ASPECT_RATIO, aspect);
+            SetUInt32(mt, MF_MT_DEFAULT_STRIDE, stride);
+        }, ptr => MediaFoundationException.ThrowIfFailed(sinkWriter.SetInputMediaType(streamIndex, ptr, IntPtr.Zero)));
+
+        return streamIndex;
     }
 
     private int TryStartAudioCapture(IMFSinkWriter sinkWriter)
     {
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
-            var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-
-            _audioCapture = new WasapiLoopbackCapture(device);
+            (_audioCapture, _silenceKeeper) = AudioRecorder.CreateLoopbackWithSilenceKeeper();
             _captureFormat = _audioCapture.WaveFormat;
             _pcmSampleRate = _captureFormat.SampleRate is 44100 or 48000 ? _captureFormat.SampleRate : 48000;
 
             int streamIndex = ConfigureAudioStream(sinkWriter, _pcmSampleRate);
-
-            try
-            {
-                _silenceKeeper = new WasapiOut(device, AudioClientShareMode.Shared, true, 100);
-                _silenceKeeper.Init(new SilenceProvider(_captureFormat));
-                _silenceKeeper.Play();
-            }
-            catch
-            {
-                _silenceKeeper?.Dispose();
-                _silenceKeeper = null;
-            }
-
             _audioCapture.DataAvailable += OnAudioDataAvailable;
             _audioCapture.StartRecording();
             return streamIndex;
@@ -391,47 +352,52 @@ internal sealed class VideoRecorder : IDisposable
 
     private static int ConfigureAudioStream(IMFSinkWriter sinkWriter, int sampleRate)
     {
-        MediaFoundationException.ThrowIfFailed(MFCreateMediaType(out IntPtr outPtr));
-        var outType = (IMFAttributes)Marshal.GetObjectForIUnknown(outPtr);
+        int streamIndex = -1;
+
+        WithMediaType(MFMediaType_Audio, MFAudioFormat_AAC, mt =>
+        {
+            SetUInt32(mt, MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+            SetUInt32(mt, MF_MT_AUDIO_SAMPLES_PER_SECOND, sampleRate);
+            SetUInt32(mt, MF_MT_AUDIO_NUM_CHANNELS, 2);
+            SetUInt32(mt, MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 24000); // 192 kbps
+        }, ptr => MediaFoundationException.ThrowIfFailed(sinkWriter.AddStream(ptr, out streamIndex)));
+
+        WithMediaType(MFMediaType_Audio, MFAudioFormat_PCM, mt =>
+        {
+            SetUInt32(mt, MF_MT_AUDIO_NUM_CHANNELS, 2);
+            SetUInt32(mt, MF_MT_AUDIO_SAMPLES_PER_SECOND, sampleRate);
+            SetUInt32(mt, MF_MT_AUDIO_BLOCK_ALIGNMENT, 4);
+            SetUInt32(mt, MF_MT_AUDIO_AVG_BYTES_PER_SECOND, sampleRate * 4);
+            SetUInt32(mt, MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+            SetUInt32(mt, MF_MT_ALL_SAMPLES_INDEPENDENT, 1);
+        }, ptr => MediaFoundationException.ThrowIfFailed(sinkWriter.SetInputMediaType(streamIndex, ptr, IntPtr.Zero)));
+
+        return streamIndex;
+    }
+
+    private static void WithMediaType(Guid majorType, Guid subType, Action<IMFAttributes> configure, Action<IntPtr> use)
+    {
+        MediaFoundationException.ThrowIfFailed(MFCreateMediaType(out IntPtr ptr));
+        var mediaType = (IMFAttributes)Marshal.GetObjectForIUnknown(ptr);
         try
         {
-            MediaFoundationException.ThrowIfFailed(outType.SetGUID(in MF_MT_MAJOR_TYPE, in MFMediaType_Audio));
-            MediaFoundationException.ThrowIfFailed(outType.SetGUID(in MF_MT_SUBTYPE, in MFAudioFormat_AAC));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT32(in MF_MT_AUDIO_BITS_PER_SAMPLE, 16));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT32(in MF_MT_AUDIO_SAMPLES_PER_SECOND, sampleRate));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT32(in MF_MT_AUDIO_NUM_CHANNELS, 2));
-            MediaFoundationException.ThrowIfFailed(outType.SetUINT32(in MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 24000)); // 192 kbps
-
-            MediaFoundationException.ThrowIfFailed(sinkWriter.AddStream(outPtr, out int streamIndex));
-
-            MediaFoundationException.ThrowIfFailed(MFCreateMediaType(out IntPtr inPtr));
-            var inType = (IMFAttributes)Marshal.GetObjectForIUnknown(inPtr);
-            try
-            {
-                MediaFoundationException.ThrowIfFailed(inType.SetGUID(in MF_MT_MAJOR_TYPE, in MFMediaType_Audio));
-                MediaFoundationException.ThrowIfFailed(inType.SetGUID(in MF_MT_SUBTYPE, in MFAudioFormat_PCM));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_AUDIO_NUM_CHANNELS, 2));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_AUDIO_SAMPLES_PER_SECOND, sampleRate));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_AUDIO_BLOCK_ALIGNMENT, 4));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_AUDIO_AVG_BYTES_PER_SECOND, sampleRate * 4));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_AUDIO_BITS_PER_SAMPLE, 16));
-                MediaFoundationException.ThrowIfFailed(inType.SetUINT32(in MF_MT_ALL_SAMPLES_INDEPENDENT, 1));
-
-                MediaFoundationException.ThrowIfFailed(sinkWriter.SetInputMediaType(streamIndex, inPtr, IntPtr.Zero));
-                return streamIndex;
-            }
-            finally
-            {
-                Marshal.ReleaseComObject(inType);
-                Marshal.Release(inPtr);
-            }
+            MediaFoundationException.ThrowIfFailed(mediaType.SetGUID(in MF_MT_MAJOR_TYPE, in majorType));
+            MediaFoundationException.ThrowIfFailed(mediaType.SetGUID(in MF_MT_SUBTYPE, in subType));
+            configure(mediaType);
+            use(ptr);
         }
         finally
         {
-            Marshal.ReleaseComObject(outType);
-            Marshal.Release(outPtr);
+            Marshal.ReleaseComObject(mediaType);
+            Marshal.Release(ptr);
         }
     }
+
+    private static void SetUInt32(IMFAttributes attrs, in Guid key, int value) =>
+        MediaFoundationException.ThrowIfFailed(attrs.SetUINT32(in key, value));
+
+    private static void SetUInt64(IMFAttributes attrs, in Guid key, long value) =>
+        MediaFoundationException.ThrowIfFailed(attrs.SetUINT64(in key, value));
 
     private void OnAudioDataAvailable(object? sender, WaveInEventArgs e)
     {
@@ -448,17 +414,11 @@ internal sealed class VideoRecorder : IDisposable
     {
         peak = 0;
         int channels = Math.Max(1, src.Channels);
-        bool isFloat = src.Encoding == WaveFormatEncoding.IeeeFloat ||
-                       (src is WaveFormatExtensible ext && ext.SubFormat == KsDataFormatSubtypeIeeeFloat);
+        bool isFloat = AudioRecorder.IsFloat32(src);
 
-        int srcFrames;
-        if (isFloat && src.BitsPerSample == 32)
-            srcFrames = data.Length / (4 * channels);
-        else if (src.BitsPerSample == 16)
-            srcFrames = data.Length / (2 * channels);
-        else
-            return null;
-
+        int srcFrames = isFloat ? data.Length / (4 * channels)
+                      : src.BitsPerSample == 16 ? data.Length / (2 * channels)
+                      : 0;
         if (srcFrames <= 0) return null;
 
         int dstFrames = src.SampleRate == dstRate
@@ -468,7 +428,7 @@ internal sealed class VideoRecorder : IDisposable
         byte[] output = new byte[dstFrames * 4]; // 2 channels * 2 bytes (int16)
         var outShorts = MemoryMarshal.Cast<byte, short>(output.AsSpan());
 
-        if (isFloat && src.BitsPerSample == 32)
+        if (isFloat)
         {
             var floats = MemoryMarshal.Cast<byte, float>(data);
             for (int i = 0; i < dstFrames; i++)

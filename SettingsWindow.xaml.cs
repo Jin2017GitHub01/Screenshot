@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 
 namespace Screenshot;
@@ -11,7 +10,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
-        SourceInitialized += (_, _) => ApplyDarkTitleBar();
+        SourceInitialized += (_, _) => NativeMethods.ApplyDarkTitleBar(this);
         Closed += (_, _) => L10n.LanguageChanged -= OnLanguageChanged;
         L10n.LanguageChanged += OnLanguageChanged;
         ApplyLanguage();
@@ -62,15 +61,6 @@ public partial class SettingsWindow : Window
     {
         base.OnKeyDown(e);
         if (e.Key == Key.Escape) Close();
-    }
-
-    private void ApplyDarkTitleBar()
-    {
-        var hwnd = new WindowInteropHelper(this).Handle;
-        int dark = 1;
-        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
-        int captionColor = 0x001A1312;
-        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_CAPTION_COLOR, ref captionColor, sizeof(int));
     }
 }
 

@@ -32,32 +32,17 @@ internal sealed class TrayIcon : IDisposable
     public TrayIcon()
     {
         _menu = new ContextMenuStrip();
-
-        _captureItem = new ToolStripMenuItem(L10n.TrayCaptureScreen, null, (_, _) => CaptureRequested?.Invoke(this, EventArgs.Empty));
-        _captureItem.Font = new Font(_menu.Font, FontStyle.Bold);
-        _menu.Items.Add(_captureItem);
-
-        _recordItem = new ToolStripMenuItem(L10n.TrayCaptureAudio, null, (_, _) => RecordToggleRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add(_recordItem);
-
-        _videoItem = new ToolStripMenuItem(L10n.TrayCaptureVideo, null, (_, _) => VideoToggleRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add(_videoItem);
-
-        _openItem = new ToolStripMenuItem(L10n.TrayOpen, null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add(_openItem);
-
-        _settingItem = new ToolStripMenuItem(L10n.TraySetting, null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add(_settingItem);
-
+        _captureItem = AddMenuItem(() => CaptureRequested?.Invoke(this, EventArgs.Empty), bold: true);
+        _recordItem = AddMenuItem(() => RecordToggleRequested?.Invoke(this, EventArgs.Empty));
+        _videoItem = AddMenuItem(() => VideoToggleRequested?.Invoke(this, EventArgs.Empty));
+        _openItem = AddMenuItem(() => OpenRequested?.Invoke(this, EventArgs.Empty));
+        _settingItem = AddMenuItem(() => SettingsRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(new ToolStripSeparator());
-
-        _exitItem = new ToolStripMenuItem(L10n.TrayExit, null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add(_exitItem);
+        _exitItem = AddMenuItem(() => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         _notifyIcon = new NotifyIcon
         {
             Icon = IconFactory.CreateAppIcon(SystemInformation.SmallIconSize.Width),
-            Text = L10n.TrayIdleTooltip,
             ContextMenuStrip = _menu,
             Visible = true
         };
@@ -70,6 +55,14 @@ internal sealed class TrayIcon : IDisposable
         ApplyLanguage();
     }
 
+    private ToolStripMenuItem AddMenuItem(Action onClick, bool bold = false)
+    {
+        var item = new ToolStripMenuItem(string.Empty, null, (_, _) => onClick());
+        if (bold) item.Font = new Font(_menu.Font, FontStyle.Bold);
+        _menu.Items.Add(item);
+        return item;
+    }
+
     private void OnLanguageChanged(object? sender, EventArgs e) => ApplyLanguage();
 
     public void ApplyLanguage()
@@ -80,7 +73,10 @@ internal sealed class TrayIcon : IDisposable
         _openItem.Text = L10n.TrayOpen;
         _settingItem.Text = L10n.TraySetting;
         _exitItem.Text = L10n.TrayExit;
-        UpdateTooltip();
+        _notifyIcon.Text =
+            _videoRecording ? L10n.TrayRecordingVideoTooltip :
+            _audioRecording ? L10n.TrayRecordingAudioTooltip :
+            L10n.TrayIdleTooltip;
     }
 
     public void ShowBalloon(string title, string text) =>
@@ -89,25 +85,15 @@ internal sealed class TrayIcon : IDisposable
     public void SetRecording(bool recording)
     {
         _audioRecording = recording;
-        _recordItem.Text = recording ? L10n.TrayStopAudio : L10n.TrayCaptureAudio;
         _videoItem.Enabled = !recording;
-        UpdateTooltip();
+        ApplyLanguage();
     }
 
     public void SetVideoRecording(bool recording)
     {
         _videoRecording = recording;
-        _videoItem.Text = recording ? L10n.TrayStopVideo : L10n.TrayCaptureVideo;
         _recordItem.Enabled = !recording;
-        UpdateTooltip();
-    }
-
-    private void UpdateTooltip()
-    {
-        _notifyIcon.Text =
-            _videoRecording ? L10n.TrayRecordingVideoTooltip :
-            _audioRecording ? L10n.TrayRecordingAudioTooltip :
-            L10n.TrayIdleTooltip;
+        ApplyLanguage();
     }
 
     public void Dispose()
