@@ -1,6 +1,50 @@
-bin/
-obj/
-.vs/
-*.user
+# Build outputs
+[Bb]in/
+[Oo]bj/
+out/
+publish/
+
+# Store & MSIX packaging outputs
 dist/
 Packaging/Assets/
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.appxupload
+
+# Certificates & signing keys (never commit private keys)
+*.pfx
+*.cer
+*.snk
+
+# Visual Studio / Rider / VS Code / IDE state
+.vs/
+.idea/
+.vscode/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.DotSettings.user
+
+# NuGet & MSBuild artifacts
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+*.nuget.props
+*.nuget.targets
+*.binlog
+
+# Crash dumps, logs & temporary media files
+*.log
+*.dmp
+*.tmp
+~$*
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
