@@ -598,7 +598,6 @@ public partial class MainWindow : Window
         if (e.OriginalSource != AnnotationCanvas) return;
         e.Handled = true;
 
-        // Clicking empty space while typing just finishes the current text.
         bool wasTyping = IsEditingText(out var editing) && !string.IsNullOrWhiteSpace(editing!.Text);
         EndTextEditing();
         SelectArrow(null);
@@ -606,7 +605,7 @@ public partial class MainWindow : Window
         var pos = e.GetPosition(AnnotationCanvas);
         switch (_tool)
         {
-            case AnnotationTool.Text when !wasTyping:
+            case AnnotationTool.Text:
                 AddTextAnnotation(pos);
                 break;
             case AnnotationTool.Arrow:
@@ -848,7 +847,11 @@ public partial class MainWindow : Window
             e.Handled = true;
         };
 
-        box.Loaded += (_, _) => box.Focus();
+        box.Loaded += (_, _) =>
+        {
+            box.Focus();
+            Keyboard.Focus(box);
+        };
         AnnotationCanvas.Children.Add(holder);
     }
 
