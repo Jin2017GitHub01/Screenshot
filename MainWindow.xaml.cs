@@ -28,6 +28,8 @@ public partial class MainWindow : Window
         L10n.LanguageChanged += (_, _) => ApplyLanguage();
     }
 
+    private void SettingButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
+
     internal void OpenSettings()
     {
         if (_settingsWindow is { IsLoaded: true })
@@ -54,6 +56,7 @@ public partial class MainWindow : Window
         SubtitleText.Text = L10n.AppSubtitle;
         CaptureLabel.Text = L10n.NewCapture;
         CaptureButton.ToolTip = L10n.NewCaptureTip;
+        SettingButton.ToolTip = L10n.SettingsTitle;
 
         RecordButton.ToolTip = _recorder.IsRecording ? L10n.StopAudioTip : L10n.RecordAudioTip;
         RecordLabel.Text = _recorder.IsRecording

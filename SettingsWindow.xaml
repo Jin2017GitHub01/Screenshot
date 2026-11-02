@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -22,8 +23,40 @@
                        Margin="12,0,0,0" VerticalAlignment="Center"/>
         </StackPanel>
 
+        <!-- Shortcut card -->
+        <Border Grid.Row="1" Margin="0,18,0,0" CornerRadius="14" Padding="16,14"
+                Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1">
+            <StackPanel>
+                <TextBlock x:Name="ShortcutHeaderText" Text="Shortcut" FontSize="14" FontWeight="SemiBold"/>
+                <Button x:Name="PrintScreenToggleButton" Style="{StaticResource BaseButton}"
+                        Padding="12,10" Margin="0,10,0,8" HorizontalContentAlignment="Stretch"
+                        Click="PrintScreenToggleButton_Click">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="PrintScreenCheckBox" Width="18" Height="18" CornerRadius="5"
+                                BorderThickness="1.5" BorderBrush="{StaticResource StrokeBrush}"
+                                VerticalAlignment="Center" Margin="0,0,10,0">
+                            <TextBlock x:Name="PrintScreenCheckIcon" Text="&#xE73E;"
+                                       FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock x:Name="PrintScreenLabelText" Grid.Column="1"
+                                   Text="Use the Print Screen key to capture screen"
+                                   FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Button>
+                <TextBlock x:Name="PrintScreenDescText" Foreground="{StaticResource MutedBrush}" FontSize="12"
+                           TextWrapping="Wrap"
+                           Text="When turned off, pressing Print Screen uses the default Windows Snipping Tool."/>
+            </StackPanel>
+        </Border>
+
         <!-- Language card -->
-        <Border Grid.Row="1" Margin="0,18,0,18" CornerRadius="14" Padding="16,14"
+        <Border Grid.Row="2" Margin="0,14,0,18" CornerRadius="14" Padding="16,14"
                 Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1">
             <StackPanel>
                 <TextBlock x:Name="LangHeaderText" Text="Language" FontSize="14" FontWeight="SemiBold"/>
@@ -36,7 +69,7 @@
         </Border>
 
         <!-- Footer -->
-        <Button x:Name="CloseButton" Grid.Row="2" Style="{StaticResource BaseButton}"
+        <Button x:Name="CloseButton" Grid.Row="3" Style="{StaticResource BaseButton}"
                 HorizontalAlignment="Right" MinWidth="92" Click="CloseButton_Click" Content="Close"/>
     </Grid>
 </Window>

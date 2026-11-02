@@ -9,6 +9,7 @@ public partial class App : Application
     private Mutex? _singleInstance;
     private TrayIcon? _tray;
     private MainWindow? _main;
+    private PrintScreenHook? _printScreenHook;
     private bool _isExiting;
     private bool _trayHintShown;
 
@@ -43,6 +44,18 @@ public partial class App : Application
         _main.RecordingStateChanged += (_, recording) => _tray.SetRecording(recording);
         _main.VideoRecordingStateChanged += (_, recording) => _tray.SetVideoRecording(recording);
 
+        _printScreenHook = new PrintScreenHook();
+        _printScreenHook.PrintScreenPressed += (_, _) =>
+        {
+            Dispatcher.InvokeAsync(async () =>
+            {
+                if (_main != null)
+                    await _main.CaptureAsync();
+            });
+        };
+        _printScreenHook.SetEnabled(L10n.UsePrintScreenKey);
+        L10n.PrintScreenKeyChanged += (_, _) => _printScreenHook?.SetEnabled(L10n.UsePrintScreenKey);
+
         // Closing the window hides it to the tray instead of quitting.
         _main.Closing += (_, args) =>
         {
@@ -68,6 +81,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _printScreenHook?.Dispose();
         _main?.DisposeRecorder();
         _tray?.Dispose();
         if (_singleInstance != null)

@@ -14,9 +14,15 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         BuildLanguageButtons();
         SourceInitialized += (_, _) => NativeMethods.ApplyDarkTitleBar(this);
-        Closed += (_, _) => L10n.LanguageChanged -= OnLanguageChanged;
+        Closed += (_, _) =>
+        {
+            L10n.LanguageChanged -= OnLanguageChanged;
+            L10n.PrintScreenKeyChanged -= OnPrintScreenKeyChanged;
+        };
         L10n.LanguageChanged += OnLanguageChanged;
+        L10n.PrintScreenKeyChanged += OnPrintScreenKeyChanged;
         ApplyLanguage();
+        ApplyPrintScreenState();
     }
 
     private void BuildLanguageButtons()
@@ -69,11 +75,15 @@ public partial class SettingsWindow : Window
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => ApplyLanguage();
+    private void OnPrintScreenKeyChanged(object? sender, EventArgs e) => ApplyPrintScreenState();
 
     private void ApplyLanguage()
     {
         Title = L10n.SettingsTitle;
         HeaderTitle.Text = L10n.SettingsTitle;
+        ShortcutHeaderText.Text = L10n.SettingsShortcutHeader;
+        PrintScreenLabelText.Text = L10n.SettingsPrintScreenLabel;
+        PrintScreenDescText.Text = L10n.SettingsPrintScreenDesc;
         LangHeaderText.Text = L10n.SettingsLanguageHeader;
         LangDescText.Text = L10n.SettingsLanguageDesc;
         CloseButton.Content = L10n.SettingsClose;
@@ -83,6 +93,27 @@ public partial class SettingsWindow : Window
             StyleLanguageButton(button, check, L10n.Current == lang);
         }
     }
+
+    private void ApplyPrintScreenState()
+    {
+        bool enabled = L10n.UsePrintScreenKey;
+        if (enabled)
+        {
+            var accent = (Brush)FindResource("AccentBrush");
+            PrintScreenCheckBox.Background = accent;
+            PrintScreenCheckBox.BorderBrush = accent;
+            PrintScreenCheckIcon.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            PrintScreenCheckBox.Background = Brushes.Transparent;
+            PrintScreenCheckBox.BorderBrush = (Brush)FindResource("StrokeBrush");
+            PrintScreenCheckIcon.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void PrintScreenToggleButton_Click(object sender, RoutedEventArgs e) =>
+        L10n.SetUsePrintScreenKey(!L10n.UsePrintScreenKey);
 
     private void StyleLanguageButton(Button button, UIElement checkIcon, bool selected)
     {

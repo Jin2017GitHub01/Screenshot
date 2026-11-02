@@ -48,15 +48,25 @@ internal static class L10n
     ];
 
     public static AppLanguage Current { get; private set; } = LoadInitialLanguage();
+    public static bool UsePrintScreenKey { get; private set; } = LoadInitialPrintScreenKey();
 
     public static event EventHandler? LanguageChanged;
+    public static event EventHandler? PrintScreenKeyChanged;
 
     public static void SetLanguage(AppLanguage language)
     {
         if (Current == language) return;
         Current = language;
-        SaveLanguage(language);
+        SaveSettings();
         LanguageChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    public static void SetUsePrintScreenKey(bool enabled)
+    {
+        if (UsePrintScreenKey == enabled) return;
+        UsePrintScreenKey = enabled;
+        SaveSettings();
+        PrintScreenKeyChanged?.Invoke(null, EventArgs.Empty);
     }
 
     public static string Get(
@@ -1105,6 +1115,48 @@ internal static class L10n
         de: "Wählen Sie die Anzeigesprache für Menüs, Schaltflächen und Meldungen.",
         pt: "Escolha o idioma de exibição para menus, botões e mensagens.");
 
+    public static string SettingsShortcutHeader => Get(
+        en: "Shortcut",
+        ko: "단축키",
+        ja: "ショートカット",
+        zhHans: "快捷键",
+        zhHant: "快速鍵",
+        hi: "शॉर्टकट",
+        ur: "شارٹ کٹ",
+        ru: "Горячая клавиша",
+        es: "Atajo de teclado",
+        fr: "Raccourci",
+        de: "Tastenkombination",
+        pt: "Atalho");
+
+    public static string SettingsPrintScreenLabel => Get(
+        en: "Use the Print Screen key to capture screen",
+        ko: "Print Screen 키로 화면 캡처 시작",
+        ja: "Print Screen キーで画面キャプチャを開始",
+        zhHans: "使用 Print Screen 键开始屏幕截图",
+        zhHant: "使用 Print Screen 鍵開始擷取畫面",
+        hi: "स्क्रीन कैप्चर करने के लिए Print Screen कुंजी का उपयोग करें",
+        ur: "اسکرین کیپچر کے لیے Print Screen کلید استعمال کریں",
+        ru: "Использовать клавишу Print Screen для снимка экрана",
+        es: "Usar la tecla Impr Pant (Print Screen) para capturar pantalla",
+        fr: "Utiliser la touche Impr. écran pour capturer l’écran",
+        de: "Druck-Taste (Print Screen) für Bildschirmaufnahme verwenden",
+        pt: "Usar a tecla Print Screen para capturar a tela");
+
+    public static string SettingsPrintScreenDesc => Get(
+        en: "When turned off, pressing Print Screen uses the default Windows Snipping Tool.",
+        ko: "끄면 Print Screen 키를 눌렀을 때 Windows 기본 캡처 도구가 실행됩니다.",
+        ja: "オフにすると、Print Screen キーは Windows 標準の Snipping Tool を起動します。",
+        zhHans: "关闭后，按 Print Screen 键将恢复使用 Windows 默认截图工具。",
+        zhHant: "關閉後，按 Print Screen 鍵將恢復使用 Windows 預設剪取工具。",
+        hi: "बंद करने पर, Print Screen दबाने से डिफ़ॉल्ट Windows स्निपिंग टूल खुलेगा।",
+        ur: "بند کرنے پر، Print Screen دبانے سے ونڈوز کا ڈیفالٹ اسنپنگ ٹول کھلے گا۔",
+        ru: "Если отключено, клавиша Print Screen будет открывать стандартные «Ножницы» Windows.",
+        es: "Si se desactiva, pulsar Impr Pant abrirá la herramienta Recortes de Windows.",
+        fr: "Lorsque cette option est désactivée, la touche Impr. écran utilise l’outil Capture Windows.",
+        de: "Wenn deaktiviert, öffnet die Druck-Taste das Windows-Snipping Tool.",
+        pt: "Quando desativado, pressionar Print Screen usa a Ferramenta de Captura do Windows.");
+
     public static string SettingsClose => Get(
         en: "Close",
         ko: "닫기",
@@ -1122,29 +1174,36 @@ internal static class L10n
     private sealed class SettingsData
     {
         public string? Language { get; set; }
+        public bool? UsePrintScreenKey { get; set; }
     }
 
-    private static AppLanguage LoadInitialLanguage()
+    private static SettingsData? ReadSettingsData()
     {
         try
         {
             if (File.Exists(SettingsPath))
-            {
-                var data = JsonSerializer.Deserialize<SettingsData>(File.ReadAllText(SettingsPath));
-                if (!string.IsNullOrWhiteSpace(data?.Language))
-                {
-                    foreach (var item in SupportedLanguages)
-                    {
-                        if (string.Equals(item.Code, data.Language, StringComparison.OrdinalIgnoreCase))
-                            return item.Language;
-                    }
-                }
-            }
+                return JsonSerializer.Deserialize<SettingsData>(File.ReadAllText(SettingsPath));
         }
         catch { /* ignore corrupt settings */ }
+        return null;
+    }
 
+    private static AppLanguage LoadInitialLanguage()
+    {
+        var data = ReadSettingsData();
+        if (!string.IsNullOrWhiteSpace(data?.Language))
+        {
+            foreach (var item in SupportedLanguages)
+            {
+                if (string.Equals(item.Code, data.Language, StringComparison.OrdinalIgnoreCase))
+                    return item.Language;
+            }
+        }
         return DetectSystemLanguage();
     }
+
+    private static bool LoadInitialPrintScreenKey() =>
+        ReadSettingsData()?.UsePrintScreenKey ?? true;
 
     public static AppLanguage DetectSystemLanguage()
     {
@@ -1173,14 +1232,18 @@ internal static class L10n
         };
     }
 
-    private static void SaveLanguage(AppLanguage language)
+    private static void SaveSettings()
     {
         try
         {
             string? dir = Path.GetDirectoryName(SettingsPath);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            string code = SupportedLanguages.FirstOrDefault(x => x.Language == language).Code ?? "en";
-            var json = JsonSerializer.Serialize(new SettingsData { Language = code });
+            string code = SupportedLanguages.FirstOrDefault(x => x.Language == Current).Code ?? "en";
+            var json = JsonSerializer.Serialize(new SettingsData
+            {
+                Language = code,
+                UsePrintScreenKey = UsePrintScreenKey
+            });
             File.WriteAllText(SettingsPath, json);
         }
         catch { /* best effort */ }
