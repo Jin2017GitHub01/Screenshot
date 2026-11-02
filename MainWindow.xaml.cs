@@ -306,6 +306,8 @@ public partial class MainWindow : Window
         }
         else if (e.ChangedButton == MouseButton.Left && _zoom > 1.0 && _tool == AnnotationTool.None)
         {
+            if (e.OriginalSource == AnnotationCanvas && HitTestCropEdge(e.GetPosition(AnnotationCanvas)) != CropEdge.None)
+                return;
             e.Handled = true;
             EndTextEditing();
             SelectTextHolder(null);
@@ -460,6 +462,18 @@ public partial class MainWindow : Window
 
     private enum AnnotationTool { None, Text, Arrow, Crop }
 
+    [Flags]
+    private enum CropEdge
+    {
+        None = 0,
+        Left = 1,
+        Top = 2,
+        Right = 4,
+        Bottom = 8
+    }
+
+    private const double EdgeHitZone = 12.0;
+
     /// <summary>Model behind an arrow <see cref="Shapes.Path"/> (stored in its Tag).</summary>
     private sealed class ArrowData
     {
@@ -486,6 +500,8 @@ public partial class MainWindow : Window
 
     private readonly Stack<BitmapSource> _cropHistory = new();
     private Border? _cropBorder;
+    private CropEdge _activeCropEdge;
+    private Rect _cropRect;
     private Point _cropStart;
     private Point _cropEnd;
 
@@ -673,6 +689,17 @@ public partial class MainWindow : Window
         SelectArrow(null);
 
         var pos = e.GetPosition(AnnotationCanvas);
+        if (_tool is AnnotationTool.None or AnnotationTool.Crop)
+        {
+            var edge = HitTestCropEdge(pos);
+            if (edge != CropEdge.None)
+            {
+                StartEdgeCrop(edge);
+                AnnotationCanvas.CaptureMouse();
+                return;
+            }
+        }
+
         switch (_tool)
         {
             case AnnotationTool.Text:
@@ -694,15 +721,33 @@ public partial class MainWindow : Window
 
     private void AnnotationCanvas_MouseMove(object sender, MouseEventArgs e)
     {
+        var pos = e.GetPosition(AnnotationCanvas);
         if (_drawingArrow != null)
         {
-            ((ArrowData)_drawingArrow.Tag).End = e.GetPosition(AnnotationCanvas);
+            ((ArrowData)_drawingArrow.Tag).End = pos;
             UpdateArrowGeometry(_drawingArrow);
         }
         else if (_cropBorder != null)
         {
-            UpdateCropSelection(e.GetPosition(AnnotationCanvas));
+            if (_activeCropEdge != CropEdge.None)
+                UpdateEdgeCrop(pos);
+            else
+                UpdateCropSelection(pos);
         }
+        else if (_tool is AnnotationTool.None or AnnotationTool.Crop)
+        {
+            var edge = HitTestCropEdge(pos);
+            if (edge != CropEdge.None)
+                AnnotationCanvas.Cursor = GetEdgeCursor(edge);
+            else
+                UpdateCanvasCursor();
+        }
+    }
+
+    private void AnnotationCanvas_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (_cropBorder is null && _drawingArrow is null)
+            UpdateCanvasCursor();
     }
 
     private void AnnotationCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -731,22 +776,70 @@ public partial class MainWindow : Window
         }
     }
 
+    private CropEdge HitTestCropEdge(Point pos)
+    {
+        double w = AnnotationCanvas.ActualWidth;
+        double h = AnnotationCanvas.ActualHeight;
+        if (w < EdgeHitZone * 2.5 || h < EdgeHitZone * 2.5) return CropEdge.None;
+
+        var edge = CropEdge.None;
+        if (pos.X >= 0 && pos.X <= EdgeHitZone) edge |= CropEdge.Left;
+        else if (pos.X <= w && pos.X >= w - EdgeHitZone) edge |= CropEdge.Right;
+
+        if (pos.Y >= 0 && pos.Y <= EdgeHitZone) edge |= CropEdge.Top;
+        else if (pos.Y <= h && pos.Y >= h - EdgeHitZone) edge |= CropEdge.Bottom;
+
+        return edge;
+    }
+
+    private static Cursor GetEdgeCursor(CropEdge edge) => edge switch
+    {
+        CropEdge.Left | CropEdge.Top or (CropEdge.Right | CropEdge.Bottom) => Cursors.SizeNWSE,
+        CropEdge.Right | CropEdge.Top or (CropEdge.Left | CropEdge.Bottom) => Cursors.SizeNESW,
+        CropEdge.Left or CropEdge.Right => Cursors.SizeWE,
+        CropEdge.Top or CropEdge.Bottom => Cursors.SizeNS,
+        _ => Cursors.Cross
+    };
+
+    private void StartEdgeCrop(CropEdge edge)
+    {
+        _activeCropEdge = edge;
+        _cropRect = new Rect(0, 0, AnnotationCanvas.ActualWidth, AnnotationCanvas.ActualHeight);
+        _cropBorder = CreateCropPreviewBorder();
+        ApplyCropBorderRect(_cropRect);
+        AnnotationCanvas.Children.Add(_cropBorder);
+    }
+
+    private void UpdateEdgeCrop(Point current)
+    {
+        if (_cropBorder is null) return;
+        Point p = ClampToCanvas(current);
+        double w = AnnotationCanvas.ActualWidth;
+        double h = AnnotationCanvas.ActualHeight;
+        const double minSize = 16;
+
+        double left = 0, top = 0, right = w, bottom = h;
+        if (_activeCropEdge.HasFlag(CropEdge.Left))
+            left = Math.Min(p.X, right - minSize);
+        if (_activeCropEdge.HasFlag(CropEdge.Right))
+            right = Math.Max(p.X, left + minSize);
+        if (_activeCropEdge.HasFlag(CropEdge.Top))
+            top = Math.Min(p.Y, bottom - minSize);
+        if (_activeCropEdge.HasFlag(CropEdge.Bottom))
+            bottom = Math.Max(p.Y, top + minSize);
+
+        _cropRect = new Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+        ApplyCropBorderRect(_cropRect);
+    }
+
     private void StartCropSelection(Point start)
     {
+        _activeCropEdge = CropEdge.None;
         _cropStart = ClampToCanvas(start);
         _cropEnd = _cropStart;
-        _cropBorder = new Border
-        {
-            BorderBrush = FocusChromeBrush,
-            BorderThickness = new Thickness(2),
-            Background = Frozen(Color.FromArgb(0x28, 0x8B, 0x5C, 0xF6)),
-            CornerRadius = new CornerRadius(2),
-            IsHitTestVisible = false
-        };
-        Canvas.SetLeft(_cropBorder, _cropStart.X);
-        Canvas.SetTop(_cropBorder, _cropStart.Y);
-        _cropBorder.Width = 0;
-        _cropBorder.Height = 0;
+        _cropRect = new Rect(_cropStart.X, _cropStart.Y, 0, 0);
+        _cropBorder = CreateCropPreviewBorder();
+        ApplyCropBorderRect(_cropRect);
         AnnotationCanvas.Children.Add(_cropBorder);
     }
 
@@ -758,10 +851,26 @@ public partial class MainWindow : Window
         double y = Math.Min(_cropStart.Y, _cropEnd.Y);
         double w = Math.Abs(_cropEnd.X - _cropStart.X);
         double h = Math.Abs(_cropEnd.Y - _cropStart.Y);
-        Canvas.SetLeft(_cropBorder, x);
-        Canvas.SetTop(_cropBorder, y);
-        _cropBorder.Width = w;
-        _cropBorder.Height = h;
+        _cropRect = new Rect(x, y, w, h);
+        ApplyCropBorderRect(_cropRect);
+    }
+
+    private static Border CreateCropPreviewBorder() => new()
+    {
+        BorderBrush = FocusChromeBrush,
+        BorderThickness = new Thickness(2),
+        Background = Frozen(Color.FromArgb(0x28, 0x8B, 0x5C, 0xF6)),
+        CornerRadius = new CornerRadius(2),
+        IsHitTestVisible = false
+    };
+
+    private void ApplyCropBorderRect(Rect r)
+    {
+        if (_cropBorder is null) return;
+        Canvas.SetLeft(_cropBorder, r.X);
+        Canvas.SetTop(_cropBorder, r.Y);
+        _cropBorder.Width = r.Width;
+        _cropBorder.Height = r.Height;
     }
 
     private void CancelCropSelection()
@@ -769,39 +878,47 @@ public partial class MainWindow : Window
         if (_cropBorder is null) return;
         var border = _cropBorder;
         _cropBorder = null;
+        _activeCropEdge = CropEdge.None;
         AnnotationCanvas.Children.Remove(border);
         if (ReferenceEquals(Mouse.Captured, AnnotationCanvas))
             AnnotationCanvas.ReleaseMouseCapture();
+        UpdateCanvasCursor();
     }
 
     private void FinishCropSelection()
     {
         if (_cropBorder is null) return;
         var border = _cropBorder;
+        var edge = _activeCropEdge;
+        var rect = _cropRect;
         _cropBorder = null;
+        _activeCropEdge = CropEdge.None;
         AnnotationCanvas.Children.Remove(border);
+        UpdateCanvasCursor();
 
         if (_current is null) return;
         double canvasW = AnnotationCanvas.ActualWidth;
         double canvasH = AnnotationCanvas.ActualHeight;
         if (canvasW <= 0 || canvasH <= 0) return;
 
-        double rx = Math.Min(_cropStart.X, _cropEnd.X);
-        double ry = Math.Min(_cropStart.Y, _cropEnd.Y);
-        double rw = Math.Abs(_cropEnd.X - _cropStart.X);
-        double rh = Math.Abs(_cropEnd.Y - _cropStart.Y);
-        if (rw < 8 || rh < 8) return;
+        if (rect.Width < 8 || rect.Height < 8) return;
+        // If dragging from an edge/corner, ignore accidental tiny nudges (< 4 DIPs trimmed).
+        if (edge != CropEdge.None &&
+            Math.Abs(rect.Width - canvasW) < 4 &&
+            Math.Abs(rect.Height - canvasH) < 4)
+            return;
 
         var flattened = GetOutputImage();
         if (flattened is null) return;
 
         double sx = flattened.PixelWidth / canvasW;
         double sy = flattened.PixelHeight / canvasH;
-        int x1 = Math.Clamp((int)Math.Round(rx * sx), 0, flattened.PixelWidth);
-        int y1 = Math.Clamp((int)Math.Round(ry * sy), 0, flattened.PixelHeight);
-        int x2 = Math.Clamp((int)Math.Round((rx + rw) * sx), 0, flattened.PixelWidth);
-        int y2 = Math.Clamp((int)Math.Round((ry + rh) * sy), 0, flattened.PixelHeight);
+        int x1 = Math.Clamp((int)Math.Round(rect.X * sx), 0, flattened.PixelWidth);
+        int y1 = Math.Clamp((int)Math.Round(rect.Y * sy), 0, flattened.PixelHeight);
+        int x2 = Math.Clamp((int)Math.Round((rect.X + rect.Width) * sx), 0, flattened.PixelWidth);
+        int y2 = Math.Clamp((int)Math.Round((rect.Y + rect.Height) * sy), 0, flattened.PixelHeight);
         if (x2 - x1 < 4 || y2 - y1 < 4) return;
+        if (x1 == 0 && y1 == 0 && x2 == flattened.PixelWidth && y2 == flattened.PixelHeight) return;
 
         _cropHistory.Push(flattened);
         var cropped = ScreenCapture.Crop(flattened, new Int32Rect(x1, y1, x2 - x1, y2 - y1));

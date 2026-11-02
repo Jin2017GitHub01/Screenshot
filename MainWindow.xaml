@@ -113,6 +113,7 @@
                                     MouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
                                     MouseMove="AnnotationCanvas_MouseMove"
                                     MouseLeftButtonUp="AnnotationCanvas_MouseLeftButtonUp"
+                                    MouseLeave="AnnotationCanvas_MouseLeave"
                                     LostMouseCapture="AnnotationCanvas_LostMouseCapture"/>
                         </Grid>
                     </Border>
