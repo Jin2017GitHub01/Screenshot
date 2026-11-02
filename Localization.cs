@@ -526,6 +526,34 @@ internal static class L10n
         de: "Pfeil hinzufügen (A) – auf dem Bild ziehen",
         pt: "Adicionar seta (A) – arraste sobre a imagem");
 
+    public static string ToolCrop => Get(
+        en: "Crop",
+        ko: "자르기",
+        ja: "切り抜き",
+        zhHans: "裁剪",
+        zhHant: "裁剪",
+        hi: "क्रॉप",
+        ur: "کراپ",
+        ru: "Обрезка",
+        es: "Recortar",
+        fr: "Rogner",
+        de: "Zuschneiden",
+        pt: "Cortar");
+
+    public static string ToolCropTip => Get(
+        en: "Crop image (K) – drag a rectangle on the image",
+        ko: "이미지 자르기 (K) – 이미지 위에서 영역을 드래그하세요",
+        ja: "画像の切り抜き (K) – 画像上で範囲をドラッグ",
+        zhHans: "裁剪图像 (K) – 在图像上拖动选择区域",
+        zhHant: "裁剪圖片 (K) – 在圖片上拖曳選取區域",
+        hi: "छवि क्रॉप करें (K) – छवि पर क्षेत्र ड्रैग करें",
+        ur: "تصویر کراپ کریں (K) – تصویر پر حصہ ڈریگ کریں",
+        ru: "Обрезать изображение (K) – выделите область на изображении",
+        es: "Recortar imagen (K) – arrastra un rectángulo sobre la imagen",
+        fr: "Rogner l’image (K) – tracez un rectangle sur l’image",
+        de: "Bild zuschneiden (K) – ziehen Sie einen Bereich auf dem Bild",
+        pt: "Cortar imagem (K) – arraste um retângulo na imagem");
+
     public static string SwatchTip => Get(
         en: "Color (text & arrows)",
         ko: "색상 (텍스트 및 화살표)",
@@ -779,6 +807,34 @@ internal static class L10n
         fr: "Faites glisser sur l’image pour dessiner une flèche",
         de: "Ziehen Sie auf dem Bild, um einen Pfeil zu zeichnen",
         pt: "Arraste sobre a imagem para desenhar uma seta");
+
+    public static string ToastCropHint => Get(
+        en: "Drag on the image to select the region to keep",
+        ko: "이미지에서 남길 영역을 드래그하여 자르세요",
+        ja: "画像上をドラッグして残す範囲を選択",
+        zhHans: "在图像上拖动以选择要保留的区域",
+        zhHant: "在圖片上拖曳以選取要保留的區域",
+        hi: "रखने के लिए छवि पर क्षेत्र ड्रैग करें",
+        ur: "محفوظ رکھنے کے لیے تصویر پر حصہ ڈریگ کریں",
+        ru: "Выделите область на изображении для обрезки",
+        es: "Arrastra sobre la imagen para seleccionar el área a conservar",
+        fr: "Faites glisser sur l’image pour sélectionner la zone à conserver",
+        de: "Ziehen Sie auf dem Bild, um den gewünschten Bereich zuzuschneiden",
+        pt: "Arraste sobre a imagem para selecionar a área a manter");
+
+    public static string ToastCropped => Get(
+        en: "Cropped & copied to clipboard",
+        ko: "자르기 완료! 클립보드에 복사되었습니다",
+        ja: "切り抜いてクリップボードにコピーしました",
+        zhHans: "已裁剪并复制到剪贴板",
+        zhHant: "已裁剪並複製到剪貼簿",
+        hi: "क्रॉप किया गया और क्लिपबोर्ड पर कॉपी किया गया",
+        ur: "کراپ ہو گیا اور کلپ بورڈ پر کاپی کر دیا گیا",
+        ru: "Обрезано и скопировано в буфер обмена",
+        es: "Recortado y copiado al portapapeles",
+        fr: "Rogné et copié dans le presse-papiers",
+        de: "Zugeschnitten und in die Zwischenablage kopiert",
+        pt: "Cortado e copiado para a área de transferência");
 
     public static string ToastRecordingAudio => Get(
         en: "Recording system audio…",

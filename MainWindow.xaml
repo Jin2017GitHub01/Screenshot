@@ -137,6 +137,13 @@
                                 <TextBlock x:Name="ArrowToolLabel" Text="Arrow"/>
                             </StackPanel>
                         </Button>
+                        <Button x:Name="CropToolButton" Style="{StaticResource BaseButton}" Focusable="False" Padding="12,7"
+                                Margin="6,0,0,0" Click="CropToolButton_Click" ToolTip="Crop image (K) – drag a rectangle on the image">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7A8;" Style="{StaticResource IconText}"/>
+                                <TextBlock x:Name="CropToolLabel" Text="Crop"/>
+                            </StackPanel>
+                        </Button>
                         <StackPanel x:Name="ColorSwatches" Orientation="Horizontal" Margin="10,0,4,0" VerticalAlignment="Center"/>
                         <Rectangle Width="1" Fill="{StaticResource StrokeBrush}" Margin="6,4"/>
                         <Button x:Name="SmallerButton" Style="{StaticResource IconButton}" Content="&#xE738;" Click="FontSmaller_Click" ToolTip="Smaller (text size / arrow thickness)"/>

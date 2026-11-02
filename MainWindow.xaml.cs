@@ -75,6 +75,8 @@ public partial class MainWindow : Window
         TextToolButton.ToolTip = L10n.ToolTextTip;
         ArrowToolLabel.Text = L10n.ToolArrow;
         ArrowToolButton.ToolTip = L10n.ToolArrowTip;
+        CropToolLabel.Text = L10n.ToolCrop;
+        CropToolButton.ToolTip = L10n.ToolCropTip;
         foreach (var swatch in ColorSwatches.Children.OfType<Button>())
             swatch.ToolTip = L10n.SwatchTip;
         SmallerButton.ToolTip = L10n.SmallerTip;
@@ -161,8 +163,9 @@ public partial class MainWindow : Window
         Activate();
     }
 
-    private void SetCurrent(BitmapSource image)
+    private void SetCurrent(BitmapSource image, bool clearHistory = true)
     {
+        if (clearHistory) _cropHistory.Clear();
         _current = image;
         PreviewImage.Source = image;
         UpdatePreviewSize();
@@ -172,6 +175,7 @@ public partial class MainWindow : Window
         _activeText = null;
         _selectedTextHolder = null;
         _selectedArrow = null;
+        _cropBorder = null;
         ResetZoom();
         SetTool(AnnotationTool.None);
         UpdateToolUi();
@@ -454,7 +458,7 @@ public partial class MainWindow : Window
     private static readonly Brush FocusChromeBrush = Frozen(Color.FromRgb(0x8B, 0x5C, 0xF6));
     private static readonly Brush HoverChromeBrush = Frozen(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
 
-    private enum AnnotationTool { None, Text, Arrow }
+    private enum AnnotationTool { None, Text, Arrow, Crop }
 
     /// <summary>Model behind an arrow <see cref="Shapes.Path"/> (stored in its Tag).</summary>
     private sealed class ArrowData
@@ -479,6 +483,11 @@ public partial class MainWindow : Window
     private Shapes.Path? _draggingArrow;  // arrow currently being moved
     private Shapes.Path? _selectedArrow;
     private Point _arrowOriginStart, _arrowOriginEnd;
+
+    private readonly Stack<BitmapSource> _cropHistory = new();
+    private Border? _cropBorder;
+    private Point _cropStart;
+    private Point _cropEnd;
 
     private static SolidColorBrush Frozen(Color c)
     {
@@ -506,18 +515,28 @@ public partial class MainWindow : Window
 
     private void TextToolButton_Click(object sender, RoutedEventArgs e) => ToggleTool(AnnotationTool.Text);
     private void ArrowToolButton_Click(object sender, RoutedEventArgs e) => ToggleTool(AnnotationTool.Arrow);
+    private void CropToolButton_Click(object sender, RoutedEventArgs e) => ToggleTool(AnnotationTool.Crop);
 
     private void ToggleTool(AnnotationTool tool) => SetTool(_tool == tool ? AnnotationTool.None : tool);
 
     private void SetTool(AnnotationTool tool)
     {
+        if (tool != AnnotationTool.Crop) CancelCropSelection();
+        if (tool == AnnotationTool.Crop) EndTextEditing();
         _tool = tool;
+        foreach (var holder in AnnotationCanvas.Children.OfType<Border>())
+        {
+            if (holder.Child is TextBox tb)
+                tb.IsHitTestVisible = tool != AnnotationTool.Crop;
+        }
         UpdateCanvasCursor();
         StyleToolButton(TextToolButton, tool == AnnotationTool.Text);
         StyleToolButton(ArrowToolButton, tool == AnnotationTool.Arrow);
+        StyleToolButton(CropToolButton, tool == AnnotationTool.Crop);
 
         if (tool == AnnotationTool.Text) ShowToast(L10n.ToastTextHint);
         else if (tool == AnnotationTool.Arrow) ShowToast(L10n.ToastArrowHint);
+        else if (tool == AnnotationTool.Crop) ShowToast(L10n.ToastCropHint);
     }
 
     private void UpdateCanvasCursor()
@@ -525,7 +544,7 @@ public partial class MainWindow : Window
         AnnotationCanvas.Cursor = _tool switch
         {
             AnnotationTool.Text => Cursors.IBeam,
-            AnnotationTool.Arrow => Cursors.Cross,
+            AnnotationTool.Arrow or AnnotationTool.Crop => Cursors.Cross,
             _ => _panning ? Cursors.SizeAll : _zoom > 1.0 ? Cursors.Hand : null
         };
     }
@@ -612,12 +631,20 @@ public partial class MainWindow : Window
     {
         EndTextEditing();
         int count = AnnotationCanvas.Children.Count;
-        if (count == 0) return;
-        var last = AnnotationCanvas.Children[count - 1];
-        AnnotationCanvas.Children.RemoveAt(count - 1);
-        if (last == _selectedArrow) _selectedArrow = null;
-        if (last == _selectedTextHolder) _selectedTextHolder = null;
-        UpdateToolUi();
+        if (count > 0)
+        {
+            var last = AnnotationCanvas.Children[count - 1];
+            AnnotationCanvas.Children.RemoveAt(count - 1);
+            if (last == _selectedArrow) _selectedArrow = null;
+            if (last == _selectedTextHolder) _selectedTextHolder = null;
+            UpdateToolUi();
+            return;
+        }
+
+        if (_cropHistory.Count > 0)
+        {
+            SetCurrent(_cropHistory.Pop(), clearHistory: false);
+        }
     }
 
     private void UpdateToolUi()
@@ -637,7 +664,7 @@ public partial class MainWindow : Window
 
     private void AnnotationCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource != AnnotationCanvas) return;
+        if (e.OriginalSource != AnnotationCanvas && _tool != AnnotationTool.Crop) return;
         e.Handled = true;
 
         bool wasTyping = IsEditingText(out var editing) && !string.IsNullOrWhiteSpace(editing!.Text);
@@ -655,6 +682,10 @@ public partial class MainWindow : Window
                 _drawingArrow = CreateArrow(pos);
                 AnnotationCanvas.CaptureMouse();
                 break;
+            case AnnotationTool.Crop:
+                StartCropSelection(pos);
+                AnnotationCanvas.CaptureMouse();
+                break;
             case AnnotationTool.None when !wasTyping && _zoom > 1.0:
                 StartPan(e.GetPosition(PreviewViewport));
                 break;
@@ -663,28 +694,125 @@ public partial class MainWindow : Window
 
     private void AnnotationCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_drawingArrow is null) return;
-        ((ArrowData)_drawingArrow.Tag).End = e.GetPosition(AnnotationCanvas);
-        UpdateArrowGeometry(_drawingArrow);
+        if (_drawingArrow != null)
+        {
+            ((ArrowData)_drawingArrow.Tag).End = e.GetPosition(AnnotationCanvas);
+            UpdateArrowGeometry(_drawingArrow);
+        }
+        else if (_cropBorder != null)
+        {
+            UpdateCropSelection(e.GetPosition(AnnotationCanvas));
+        }
     }
 
     private void AnnotationCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_drawingArrow is null) return;
+        if (_drawingArrow is null && _cropBorder is null) return;
         e.Handled = true;
         AnnotationCanvas.ReleaseMouseCapture(); // finishes in LostMouseCapture
     }
 
     private void AnnotationCanvas_LostMouseCapture(object sender, MouseEventArgs e)
     {
-        if (e.OriginalSource != AnnotationCanvas || _drawingArrow is null) return;
-        var arrow = _drawingArrow;
-        _drawingArrow = null;
+        if (e.OriginalSource != AnnotationCanvas) return;
 
-        // A plain click (no real drag) doesn't leave a stray dot behind.
-        var d = (ArrowData)arrow.Tag;
-        if ((d.End - d.Start).Length < 6) AnnotationCanvas.Children.Remove(arrow);
+        if (_drawingArrow != null)
+        {
+            var arrow = _drawingArrow;
+            _drawingArrow = null;
+
+            // A plain click (no real drag) doesn't leave a stray dot behind.
+            var d = (ArrowData)arrow.Tag;
+            if ((d.End - d.Start).Length < 6) AnnotationCanvas.Children.Remove(arrow);
+        }
+        else if (_cropBorder != null)
+        {
+            FinishCropSelection();
+        }
     }
+
+    private void StartCropSelection(Point start)
+    {
+        _cropStart = ClampToCanvas(start);
+        _cropEnd = _cropStart;
+        _cropBorder = new Border
+        {
+            BorderBrush = FocusChromeBrush,
+            BorderThickness = new Thickness(2),
+            Background = Frozen(Color.FromArgb(0x28, 0x8B, 0x5C, 0xF6)),
+            CornerRadius = new CornerRadius(2),
+            IsHitTestVisible = false
+        };
+        Canvas.SetLeft(_cropBorder, _cropStart.X);
+        Canvas.SetTop(_cropBorder, _cropStart.Y);
+        _cropBorder.Width = 0;
+        _cropBorder.Height = 0;
+        AnnotationCanvas.Children.Add(_cropBorder);
+    }
+
+    private void UpdateCropSelection(Point current)
+    {
+        if (_cropBorder is null) return;
+        _cropEnd = ClampToCanvas(current);
+        double x = Math.Min(_cropStart.X, _cropEnd.X);
+        double y = Math.Min(_cropStart.Y, _cropEnd.Y);
+        double w = Math.Abs(_cropEnd.X - _cropStart.X);
+        double h = Math.Abs(_cropEnd.Y - _cropStart.Y);
+        Canvas.SetLeft(_cropBorder, x);
+        Canvas.SetTop(_cropBorder, y);
+        _cropBorder.Width = w;
+        _cropBorder.Height = h;
+    }
+
+    private void CancelCropSelection()
+    {
+        if (_cropBorder is null) return;
+        var border = _cropBorder;
+        _cropBorder = null;
+        AnnotationCanvas.Children.Remove(border);
+        if (ReferenceEquals(Mouse.Captured, AnnotationCanvas))
+            AnnotationCanvas.ReleaseMouseCapture();
+    }
+
+    private void FinishCropSelection()
+    {
+        if (_cropBorder is null) return;
+        var border = _cropBorder;
+        _cropBorder = null;
+        AnnotationCanvas.Children.Remove(border);
+
+        if (_current is null) return;
+        double canvasW = AnnotationCanvas.ActualWidth;
+        double canvasH = AnnotationCanvas.ActualHeight;
+        if (canvasW <= 0 || canvasH <= 0) return;
+
+        double rx = Math.Min(_cropStart.X, _cropEnd.X);
+        double ry = Math.Min(_cropStart.Y, _cropEnd.Y);
+        double rw = Math.Abs(_cropEnd.X - _cropStart.X);
+        double rh = Math.Abs(_cropEnd.Y - _cropStart.Y);
+        if (rw < 8 || rh < 8) return;
+
+        var flattened = GetOutputImage();
+        if (flattened is null) return;
+
+        double sx = flattened.PixelWidth / canvasW;
+        double sy = flattened.PixelHeight / canvasH;
+        int x1 = Math.Clamp((int)Math.Round(rx * sx), 0, flattened.PixelWidth);
+        int y1 = Math.Clamp((int)Math.Round(ry * sy), 0, flattened.PixelHeight);
+        int x2 = Math.Clamp((int)Math.Round((rx + rw) * sx), 0, flattened.PixelWidth);
+        int y2 = Math.Clamp((int)Math.Round((ry + rh) * sy), 0, flattened.PixelHeight);
+        if (x2 - x1 < 4 || y2 - y1 < 4) return;
+
+        _cropHistory.Push(flattened);
+        var cropped = ScreenCapture.Crop(flattened, new Int32Rect(x1, y1, x2 - x1, y2 - y1));
+        SetCurrent(cropped, clearHistory: false);
+        if (TryCopyToClipboard())
+            ShowToast(L10n.ToastCropped);
+    }
+
+    private Point ClampToCanvas(Point p) => new(
+        Math.Clamp(p.X, 0, Math.Max(0, AnnotationCanvas.ActualWidth)),
+        Math.Clamp(p.Y, 0, Math.Max(0, AnnotationCanvas.ActualHeight)));
 
     private Shapes.Path CreateArrow(Point start)
     {
@@ -701,7 +829,7 @@ public partial class MainWindow : Window
 
         path.MouseLeftButtonDown += (_, e) =>
         {
-            if (_drawingArrow != null) return;
+            if (_drawingArrow != null || _tool == AnnotationTool.Crop) return;
             EndTextEditing();
             SelectTextHolder(null);
             SelectArrow(path);
@@ -816,7 +944,7 @@ public partial class MainWindow : Window
     {
         foreach (var child in AnnotationCanvas.Children)
         {
-            if (child is Border holder) UpdateChrome(holder);
+            if (child is Border holder && holder != _cropBorder) UpdateChrome(holder);
             else if (child is Shapes.Path path)
                 path.Effect = !_exporting && path == _selectedArrow ? SelectionGlow() : AnnotationShadow();
         }
@@ -883,7 +1011,7 @@ public partial class MainWindow : Window
 
         holder.MouseLeftButtonDown += (_, e) =>
         {
-            if (e.OriginalSource != holder) return; // clicks on the text itself go to the TextBox
+            if (e.OriginalSource != holder || _tool == AnnotationTool.Crop) return; // clicks on the text itself go to the TextBox
             EndTextEditing();
             SelectArrow(null);
             SelectTextHolder(holder);
@@ -1385,7 +1513,12 @@ public partial class MainWindow : Window
 
         if (Keyboard.Modifiers == ModifierKeys.None)
         {
-            if (e.Key == Key.Escape && editing)
+            if (e.Key == Key.Escape && _cropBorder != null)
+            {
+                e.Handled = true;
+                CancelCropSelection();
+            }
+            else if (e.Key == Key.Escape && editing)
             {
                 e.Handled = true;
                 EndTextEditing();
@@ -1415,6 +1548,11 @@ public partial class MainWindow : Window
             {
                 e.Handled = true;
                 ToggleTool(AnnotationTool.Arrow);
+            }
+            else if (e.Key == Key.K && !editing && _current != null)
+            {
+                e.Handled = true;
+                ToggleTool(AnnotationTool.Crop);
             }
             return;
         }
